@@ -1,13 +1,13 @@
 # Mununu UI
 
-**Web interface for the [Mununu](https://github.com/vscorza/mununu) CLTS verification tool**
+**Web interface for the [Mununu](https://github.com/Mumunu-team/mununu) CLTS verification tool**
 
-[![CI](https://github.com/vscorza/mununu-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/vscorza/mununu-ui/actions/workflows/ci.yml)
+[![CI](https://github.com/Mumunu-team/mununu-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/Mumunu-team/mununu-ui/actions/workflows/ci.yml)
 [![Node.js 20+](https://img.shields.io/badge/node-20%2B-green.svg)](https://nodejs.org/)
 
 <!-- TODO: Add screenshot of the editor with graph visualization -->
 
-**[Live Demo](https://vscorza.github.io/mununu-ui/)** | **[Mununu Backend](https://github.com/vscorza/mununu)**
+**[Live Demo](https://mumunu-team.github.io/mununu-ui/)** | **[Mununu Backend](https://github.com/Mumunu-team/mununu)**
 
 ## Features
 
@@ -33,7 +33,7 @@ npm run dev
 ## Prerequisites
 
 - Node.js 20+ and npm
-- [Mununu](https://github.com/vscorza/mununu) backend running for API features
+- [Mununu](https://github.com/Mumunu-team/mununu) backend running for API features
 
 ## Scripts
 
