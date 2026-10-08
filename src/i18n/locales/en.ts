@@ -481,6 +481,12 @@ export const en = {
       columnStates: "States",
       verdictSatisfied: "SATISFIED",
       verdictViolated: "VIOLATED",
+      verdictVacuous: "VACUOUS",
+      verdictUnder: "{verdict} under {{assumptions}}",
+      assumptionsLabel: "Assumptions:",
+      fairPathExists: "a fair path exists from every initial state",
+      vacuousHint:
+        "the assumptions admit no fair path from the initial state(s); the formula is trivially true — not a pass",
       sourceInline: "inline",
       sourceTemplatePrefix: "template:",
       formulaLabel: "Formula:",
