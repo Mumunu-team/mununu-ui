@@ -2305,6 +2305,27 @@ export interface VerifyProperty {
   formula?: string;
   args?: Record<string, string>;
   over?: string;
+  /**
+   * mununu#595 — names of `[[assumptions]]` this property is verified UNDER.
+   * Only the fairness templates (`fair_response`, `fair_always_eventually`)
+   * take assumptions, and they require at least one.
+   */
+  assumptions?: string[];
+}
+
+/**
+ * mununu#595 — one `[[assumptions]]` entry: a named environment assumption
+ * (fairness constraint) every considered path must satisfy infinitely often.
+ * Mirrors `verify::config::AssumptionSection`.
+ */
+export interface VerifyAssumption {
+  name: string;
+  /** `"state"` (GF P) | `"edge"` (GF ⟨l⟩) | `"edges"` (any of `labels`) | `"weak"` (weak fairness of l). */
+  kind: "state" | "edge" | "edges" | "weak";
+  /** The state predicate (`state`) or the label (`edge`, `weak`). */
+  atom?: string;
+  /** The labels (`edges`). */
+  labels?: string[];
 }
 
 /** Parsed verify.toml payload. Mirrors `verify::config::VerifyConfig`. */
@@ -2314,6 +2335,10 @@ export interface VerifyConfig {
   alphabet?: VerifyAlphabet;
   composition: VerifyComposition;
   properties?: VerifyProperty[];
+  /** mununu#595 — `[[assumptions]]`, referenced by name from `properties[].assumptions`. */
+  assumptions?: VerifyAssumption[];
+  /** mununu#594 — the counterexample step cap (default 20 on the backend). */
+  counterexample_max_steps?: number;
 }
 
 /**
@@ -2433,6 +2458,12 @@ export interface VerifyTraceWitness {
   initial_state: string;
   steps: VerifyTraceStep[];
   termination: VerifyTraceTermination;
+  /**
+   * mununu#594 — on the safety shape (`nu X. (phi && [] X)`), the `!phi`
+   * state the shortest path leads to, named even when the printed steps
+   * were cut at the cap.
+   */
+  violating_state?: string;
 }
 
 /** Per-property verdict. */
@@ -2460,6 +2491,20 @@ export interface VerifyPropertyVerdict {
   };
   /** Present only when `satisfied === false` and a witness was constructible. */
   counterexample?: VerifyTraceWitness;
+  /**
+   * mununu#595 — the `[[assumptions]]` this verdict is CONDITIONAL on (by
+   * name). Absent / empty for an unconditional property. Non-empty means
+   * `satisfied` reads "holds under these assumptions", never a bare "holds".
+   */
+  assumptions?: string[];
+  /**
+   * mununu#595 — the non-vacuity gate for a conditional verdict: a fair
+   * path (satisfying every assumption infinitely often) exists from every
+   * initial state. `false` = the assumptions are unsatisfiable and the
+   * property is VACUOUS — `satisfied` is then true for no reason. Absent
+   * for an unconditional property.
+   */
+  fair_path_exists?: boolean;
 }
 
 /** Top-level report from `POST /api/v1/verify`. */

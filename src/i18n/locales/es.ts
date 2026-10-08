@@ -488,6 +488,12 @@ export const es: typeof en = {
       columnStates: "Estados",
       verdictSatisfied: "SATISFECHA",
       verdictViolated: "VIOLADA",
+      verdictVacuous: "VACUA",
+      verdictUnder: "{verdict} bajo {{assumptions}}",
+      assumptionsLabel: "Supuestos:",
+      fairPathExists: "existe un camino justo desde cada estado inicial",
+      vacuousHint:
+        "los supuestos no admiten ningún camino justo desde el/los estado(s) inicial(es); la fórmula es trivialmente verdadera — no cuenta como satisfecha",
       sourceInline: "en línea",
       sourceTemplatePrefix: "plantilla:",
       formulaLabel: "Fórmula:",

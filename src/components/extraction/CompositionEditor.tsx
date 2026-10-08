@@ -228,7 +228,7 @@ export function CompositionEditor({
       <div className="text-xs text-gray-500 dark:text-gray-400">
         Declare instances + shared labels for compositional verification. See{" "}
         <a
-          href="https://github.com/vscorza/mununu/wiki/Compositional-Extraction"
+          href="https://github.com/Mumunu-team/mununu/wiki/Compositional-Extraction"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-blue-600 dark:hover:text-blue-400"

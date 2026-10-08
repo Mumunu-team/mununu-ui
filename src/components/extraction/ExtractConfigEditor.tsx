@@ -241,7 +241,7 @@ export function ExtractConfigEditor({
         <span className="font-mono">composition</span>, and optional{" "}
         <span className="font-mono">properties</span>. See the{" "}
         <a
-          href="https://github.com/vscorza/mununu/wiki/Compositional-Extraction-Tutorial"
+          href="https://github.com/Mumunu-team/mununu/wiki/Compositional-Extraction-Tutorial"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-blue-600 dark:hover:text-blue-400"

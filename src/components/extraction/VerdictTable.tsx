@@ -61,7 +61,11 @@ export function VerdictTable({ report }: VerdictTableProps) {
 
 function Header({ report }: { report: VerifyReport }) {
   const { t } = useI18n();
-  const satisfied = report.property_verdicts.filter((v) => v.satisfied).length;
+  // mununu#595 — a VACUOUS conditional verdict (assumptions admit no fair
+  // path) is not a satisfied property, whatever `satisfied` says.
+  const satisfied = report.property_verdicts.filter(
+    (v) => v.satisfied && v.fair_path_exists !== false,
+  ).length;
   const total = report.property_verdicts.length;
   return (
     <div className="space-y-1">
@@ -163,9 +167,27 @@ function ClusterCoiSummary({ sources }: { sources: VerifySourceSummary[] }) {
 function VerdictRow({ verdict }: { verdict: VerifyPropertyVerdict }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  const verdictClass = verdict.satisfied
-    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-    : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
+  // mununu#595 — a conditional verdict says what it holds UNDER; when the
+  // assumptions admit no fair path it is VACUOUS (amber, not green): the
+  // formula is true for nothing.
+  const vacuous = verdict.satisfied && verdict.fair_path_exists === false;
+  const conditional = (verdict.assumptions?.length ?? 0) > 0;
+  const verdictClass = vacuous
+    ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+    : verdict.satisfied
+      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+      : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
+  const verdictWord = vacuous
+    ? t("extraction.verdictTable.verdictVacuous")
+    : verdict.satisfied
+      ? t("extraction.verdictTable.verdictSatisfied")
+      : t("extraction.verdictTable.verdictViolated");
+  const verdictLabel = conditional
+    ? t("extraction.verdictTable.verdictUnder", {
+        verdict: verdictWord,
+        assumptions: (verdict.assumptions ?? []).join(", "),
+      })
+    : verdictWord;
   const sourceLabel =
     verdict.formula_source.kind === "template"
       ? `${t("extraction.verdictTable.sourceTemplatePrefix")}${verdict.formula_source.id}`
@@ -183,10 +205,11 @@ function VerdictRow({ verdict }: { verdict: VerifyPropertyVerdict }) {
         <td className="px-3 py-2 text-xs">
           <span
             className={`inline-block rounded-full px-2 py-0.5 font-medium ${verdictClass}`}
+            title={
+              vacuous ? t("extraction.verdictTable.vacuousHint") : undefined
+            }
           >
-            {verdict.satisfied
-              ? t("extraction.verdictTable.verdictSatisfied")
-              : t("extraction.verdictTable.verdictViolated")}
+            {verdictLabel}
           </span>
         </td>
         <td className="px-3 py-2 text-xs font-mono text-gray-600 dark:text-gray-400">
@@ -251,6 +274,22 @@ function VerdictRow({ verdict }: { verdict: VerifyPropertyVerdict }) {
                     </span>
                   </div>
                 )}
+              {conditional && (
+                <div className="text-gray-600 dark:text-gray-400">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {t("extraction.verdictTable.assumptionsLabel")}
+                  </span>{" "}
+                  <span className="font-mono">
+                    {(verdict.assumptions ?? []).join(", ")}
+                  </span>
+                  {" · "}
+                  <span>
+                    {verdict.fair_path_exists === false
+                      ? t("extraction.verdictTable.vacuousHint")
+                      : t("extraction.verdictTable.fairPathExists")}
+                  </span>
+                </div>
+              )}
               {verdict.counterexample && (
                 <div className="border-t border-gray-200 pt-2 dark:border-gray-700">
                   <CounterexampleTrace witness={verdict.counterexample} />

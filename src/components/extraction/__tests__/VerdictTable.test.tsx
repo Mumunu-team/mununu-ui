@@ -150,6 +150,43 @@ describe("VerdictTable", () => {
     expect(screen.queryByText(/Counterexample \(from/)).not.toBeInTheDocument();
   });
 
+  // mununu#595 — a conditional verdict says what it holds UNDER, and a
+  // VACUOUS one (assumptions admit no fair path) is neither green nor counted.
+  it("renders a conditional verdict with its assumptions, and a vacuous one as VACUOUS", async () => {
+    const report: VerifyReport = {
+      ...baseReport,
+      property_verdicts: [
+        {
+          ...baseReport.property_verdicts[0],
+          name: "served_under_progress",
+          satisfied: false,
+          assumptions: ["env_progress"],
+          fair_path_exists: true,
+        },
+        {
+          ...baseReport.property_verdicts[0],
+          name: "served_under_impossible",
+          satisfied: true,
+          assumptions: ["env_takes_go"],
+          fair_path_exists: false,
+        },
+      ],
+    };
+    render(<VerdictTable report={report} />);
+    expect(
+      screen.getByText("VIOLATED under {env_progress}"),
+    ).toBeInTheDocument();
+    const vacuous = screen.getByText("VACUOUS under {env_takes_go}");
+    expect(vacuous).toBeInTheDocument();
+    expect(vacuous.className).toContain("amber");
+    // The header counts the vacuous verdict as NOT satisfied: 0 / 2.
+    expect(screen.getByText("0")).toBeInTheDocument();
+    // The expanded row names the assumptions and the gate.
+    await userEvent.click(screen.getByText("served_under_impossible"));
+    expect(screen.getByText("Assumptions:")).toBeInTheDocument();
+    expect(screen.getByText(/admit no fair path/)).toBeInTheDocument();
+  });
+
   it("does not render the clustered-COI block when no source carries one", () => {
     render(<VerdictTable report={baseReport} />);
     expect(
