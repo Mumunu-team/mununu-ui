@@ -31,6 +31,26 @@ export interface ContextVerifyRequest {
   minimize?: boolean;
   /** Stub .espec.json content to compose as sidecars. */
   stubs?: { name: string; content: string }[];
+  /** Run the structural checks (`context eval --sanity`) beside the verdicts. */
+  sanity?: boolean;
+}
+
+/** A path through the model: `states[0] -labels[0]-> states[1] …`. */
+export interface SanityPath {
+  states: string[];
+  labels: string[];
+}
+
+/** Structural findings for one automaton (`mununu context eval --sanity`). */
+export interface SanityReport {
+  automaton: string;
+  reachable_states: number;
+  /** Reachable states with no outgoing transition, each with a shortest path from an initial state. */
+  deadlocks: SanityPath[];
+  unreachable_states: string[];
+  labels_never_fired: string[];
+  /** Sets of states that can cycle forever on internal labels alone. */
+  internal_livelocks: string[][];
 }
 
 export interface GraphElementData {
@@ -74,6 +94,8 @@ export interface ContextVerifyResponse {
   success: boolean;
   all_satisfied: boolean;
   results: FormulaVerificationResult[];
+  /** One report per checked automaton, present when `sanity` was requested. */
+  sanity?: SanityReport[];
 }
 
 // Context endpoints
