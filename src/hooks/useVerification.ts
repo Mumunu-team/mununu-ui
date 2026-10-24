@@ -77,6 +77,8 @@ export const useVerification = (initialState?: Partial<VerificationState>) => {
               formula: formula || undefined,
               template_ref: templateRef || undefined,
               automaton: automaton || undefined,
+              // Linear in the model; shown above the verdicts.
+              sanity: true,
             }),
           {
             maxRetries: 3,

@@ -1,3 +1,4 @@
+import { SanityPanel } from "./SanityPanel";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import Editor, { BeforeMount, OnMount } from "@monaco-editor/react";
 import { useCtxdslEditor } from "../../hooks/useCtxdslEditor";
@@ -971,6 +972,7 @@ export const UnifiedEditor = () => {
                       ? "All Formulas Satisfied"
                       : "Some Formulas Not Satisfied"}
                   </div>
+                  <SanityPanel reports={verification.state.result.sanity} />
                   <table className="unified-editor__verify-table">
                     <thead>
                       <tr>
