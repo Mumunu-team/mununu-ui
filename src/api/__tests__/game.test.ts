@@ -8,6 +8,8 @@ import {
 
 // Realizable game → the controller's Mealy strategy.
 const controllerResponse: Btor2GameResponse = {
+  outcome: "holds",
+  detail: "the controller forces the objective against every environment move",
   realizable: true,
   good: "st == 1",
   objective: "reach",
@@ -29,6 +31,8 @@ const controllerResponse: Btor2GameResponse = {
 
 // Unrealizable game → the environment's positional counterstrategy.
 const environmentResponse: Btor2GameResponse = {
+  outcome: "violated",
+  detail: "the environment can prevent the objective (no controller wins)",
   realizable: false,
   good: "st == 1",
   objective: "reach",
@@ -287,5 +291,49 @@ describe("runBtor2Game (POST /btor2/game)", () => {
     expect(out.holds_under?.[0]?.kind).toBe("InputFairnessConjunction");
     expect(out.holds_under?.[0]?.phi).toContain("GF(e1 == 0)");
     expect(out.holds_under?.[0]?.phi).toContain("GF(e2 == 0)");
+  });
+
+  it("returns the recurrence stall lasso as a `lasso` trace", async () => {
+    // mununu 0.5: the former `stall_lasso: {prefix, cycle, inputs}` is a `trace`
+    // whose steps from `loop_start` repeat forever.
+    vi.spyOn(aiApiClient, "post").mockResolvedValue({
+      data: {
+        ...environmentResponse,
+        objective: "recurrence",
+        strategy: undefined,
+        trace: {
+          kind: "lasso",
+          loop_start: 1,
+          steps: [
+            {
+              cycle: 0,
+              state: [{ register: "st", value: 0, hex: "0x0", bits: 1 }],
+              inputs: [{ register: "e", value: 1, hex: "0x1", bits: 1 }],
+            },
+            {
+              cycle: 1,
+              state: [{ register: "st", value: 0, hex: "0x0", bits: 1 }],
+              inputs: [{ register: "e", value: 0, hex: "0x0", bits: 1 }],
+            },
+          ],
+        },
+      } as Btor2GameResponse,
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: {} as unknown,
+    });
+
+    const out = await runBtor2Game({
+      content: "…btor2…",
+      good: "st == 1",
+      controllable: ["c"],
+      objective: "recurrence",
+    });
+
+    expect(out.outcome).toBe("violated");
+    expect(out.trace?.kind).toBe("lasso");
+    expect(out.trace?.loop_start).toBe(1);
+    expect(out.trace?.steps[1].inputs?.[0].register).toBe("e");
   });
 });

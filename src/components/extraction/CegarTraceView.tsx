@@ -14,8 +14,9 @@ import {
   downloadAsFile,
   Btor2CegarResponse,
   CegarVerdictSummary,
-  CounterTraceView,
+  Trace,
 } from "../../api/endpoints";
+import { TraceView } from "../visualization/TraceView";
 
 /** 3-valued verdict cell counts (KleeneT / KleeneF / KleeneBot). */
 export const Trit = ({ summary }: { summary: CegarVerdictSummary }) => (
@@ -63,7 +64,9 @@ const WitnessCells = ({
           <li key={c.cube_index}>{`{${formatCell(c.valuation)}}`}</li>
         ))}
         {total > cells.length && (
-          <li style={{ color: "var(--text-secondary, #666)", listStyle: "none" }}>
+          <li
+            style={{ color: "var(--text-secondary, #666)", listStyle: "none" }}
+          >
             … and {total - cells.length} more
           </li>
         )}
@@ -73,22 +76,19 @@ const WitnessCells = ({
 
 /**
  * Track I.1 (trace slice) — an ordered reachability countertrace from an initial
- * failing cell to a trap (or the farthest reachable failing cell). Omitted when
- * the property is not violated at the initial cell.
+ * failing cell to a trap (or the farthest reachable failing cell): a `finite` /
+ * `trap` {@link Trace} whose steps list each cell's predicates as 1-bit cells.
+ * Omitted when the property is not violated at the initial cell.
  */
-const Countertrace = ({ trace }: { trace?: CounterTraceView }) =>
+const Countertrace = ({ trace }: { trace?: Trace }) =>
   !trace || trace.steps.length === 0 ? null : (
     <div style={{ marginBottom: "1rem" }}>
       <strong>
         Countertrace ({trace.steps.length} step
         {trace.steps.length === 1 ? "" : "s"}
-        {trace.ends_in_trap ? ", ends in trap" : ""}):
+        {trace.kind === "trap" ? ", ends in trap" : ""}):
       </strong>
-      <ol style={{ margin: "0.25rem 0 0", fontFamily: "monospace" }}>
-        {trace.steps.map((c, i) => (
-          <li key={`${i}-${c.cube_index}`}>{`{${formatCell(c.valuation)}}`}</li>
-        ))}
-      </ol>
+      <TraceView trace={trace} title="" />
     </div>
   );
 
@@ -118,7 +118,7 @@ export const CegarTraceView = ({ result }: { result: Btor2CegarResponse }) => (
     <div style={{ marginBottom: "1rem" }}>
       <strong>Terminated with:</strong> <code>{result.terminated_with}</code>
       <br />
-      <strong>Final verdict:</strong> <Trit summary={result.verdict} />
+      <strong>Final verdict:</strong> <Trit summary={result.cells} />
       <br />
       <strong>Iterations:</strong> {result.iterations.length}
       {result.lazy_lift_pending && (
@@ -142,16 +142,16 @@ export const CegarTraceView = ({ result }: { result: Btor2CegarResponse }) => (
     <WitnessCells
       label="Falsified at"
       cells={result.violating_cells ?? []}
-      total={result.verdict.false_cells}
+      total={result.cells.false_cells}
     />
     <WitnessCells
       label="Undecided at"
       cells={result.undecided_cells ?? []}
-      total={result.verdict.unknown_cells}
+      total={result.cells.unknown_cells}
     />
-    <Countertrace trace={result.counterexample} />
+    <Countertrace trace={result.trace} />
     <UndecidedExplanation
-      unknownCells={result.verdict.unknown_cells}
+      unknownCells={result.cells.unknown_cells}
       candidates={result.refinement_candidates}
     />
 
@@ -191,7 +191,7 @@ export const CegarTraceView = ({ result }: { result: Btor2CegarResponse }) => (
               {iter.game_position_evaluations}
             </td>
             <td style={{ padding: "0.4rem" }}>
-              <Trit summary={iter.verdict} />
+              <Trit summary={iter.cells} />
             </td>
           </tr>
         ))}

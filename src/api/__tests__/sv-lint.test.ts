@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { aiApiClient } from "../client";
-import { runSvLint, type SvLintRequest, type SvLintResponse } from "../endpoints";
+import {
+  runSvLint,
+  type SvLintRequest,
+  type SvLintResponse,
+} from "../endpoints";
 
 const mockResponse: SvLintResponse = {
   signals_flagged: 3,
@@ -23,7 +27,7 @@ describe("runSvLint (POST /sv/lint)", () => {
     vi.clearAllMocks();
   });
 
-  it("posts the SV lift fields and returns the typed partial-write findings", async () => {
+  it("nests the design under `lift` and returns the typed partial-write findings", async () => {
     const postSpy = vi.spyOn(aiApiClient, "post").mockResolvedValue({
       data: mockResponse,
       status: 200,
@@ -33,15 +37,15 @@ describe("runSvLint (POST /sv/lint)", () => {
     });
 
     const req: SvLintRequest = {
-      source: "module m; endmodule",
-      use_slang: true,
+      lift: { source: "module m; endmodule", frontend: "slang" },
     };
     const out = await runSvLint(req);
 
     expect(postSpy).toHaveBeenCalledTimes(1);
     const [endpoint, payload] = postSpy.mock.calls[0];
     expect(endpoint).toBe("/sv/lint");
-    expect((payload as SvLintRequest).use_slang).toBe(true);
+    expect((payload as SvLintRequest).lift.frontend).toBe("slang");
+    expect(payload).not.toHaveProperty("source");
 
     expect(out.signals_flagged).toBe(3);
     expect(out.registers_flagged).toBe(2);
@@ -61,7 +65,7 @@ describe("runSvLint (POST /sv/lint)", () => {
       config: {} as unknown,
     });
 
-    const out = await runSvLint({ source: "module m; endmodule" });
+    const out = await runSvLint({ lift: { source: "module m; endmodule" } });
 
     const arrayRead = out.findings.find(
       (f) => f.rule === "registered-array-read-moving-address",
@@ -76,7 +80,9 @@ describe("runSvLint (POST /sv/lint)", () => {
     const bare: SvLintResponse = {
       signals_flagged: 1,
       registers_flagged: 1,
-      findings: [{ signal: "a_q", kind: "register", rule: "undriven-partial-write" }],
+      findings: [
+        { signal: "a_q", kind: "register", rule: "undriven-partial-write" },
+      ],
     };
     expect(bare.findings[0].detail).toBeUndefined();
   });

@@ -8,7 +8,7 @@ import type { LayoutType } from "../../hooks/useGraphVisualization";
 import "./MultiGraphView.css";
 
 type GraphData =
-  paths["/api/v1/context/graphs"]["post"]["responses"]["200"]["content"]["application/json"]["graphs"][0];
+  paths["/api/v1/context/graph"]["post"]["responses"]["200"]["content"]["application/json"]["graphs"][0];
 
 interface MultiGraphViewProps {
   graphs: GraphData[];

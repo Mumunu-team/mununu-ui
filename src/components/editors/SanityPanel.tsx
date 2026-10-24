@@ -1,10 +1,5 @@
 import type { SanityReport } from "../../api/endpoints";
-
-/** Formats a path as `Init -go-> Busy -stop-> Done`. */
-const formatPath = (states: string[], labels: string[]): string =>
-  states
-    .map((s, i) => (i === 0 ? s : `-${labels[i - 1]}-> ${s}`))
-    .join(" ");
+import { formatTracePath, traceStateNames } from "../../utils/trace";
 
 const isClean = (r: SanityReport): boolean =>
   r.deadlocks.length === 0 &&
@@ -13,7 +8,7 @@ const isClean = (r: SanityReport): boolean =>
   r.internal_livelocks.length === 0;
 
 /**
- * Structural findings of `/context/verify` with `sanity: true` (`mununu context eval --sanity`):
+ * Structural findings of `/context/eval` with `sanity: true` (`mununu context eval --sanity`):
  * deadlocks with a path, unreachable states, labels that never fire, internal livelocks.
  */
 export const SanityPanel = ({ reports }: { reports?: SanityReport[] }) => {
@@ -31,12 +26,15 @@ export const SanityPanel = ({ reports }: { reports?: SanityReport[] }) => {
             </div>
           ) : (
             <ul className="unified-editor__sanity-list">
-              {r.deadlocks.map((d) => (
-                <li key={`d:${d.states.join("/")}`}>
-                  Deadlock in <code>{d.states[d.states.length - 1]}</code>:{" "}
-                  <code>{formatPath(d.states, d.labels)}</code>
-                </li>
-              ))}
+              {r.deadlocks.map((d) => {
+                const states = traceStateNames(d);
+                return (
+                  <li key={`d:${states.join("/")}`}>
+                    Deadlock in <code>{states[states.length - 1]}</code>:{" "}
+                    <code>{formatTracePath(d)}</code>
+                  </li>
+                );
+              })}
               {r.unreachable_states.map((s) => (
                 <li key={`u:${s}`}>
                   Unreachable state <code>{s}</code>

@@ -47,12 +47,12 @@ describe("CegarRunner", () => {
           had_failure_subgame: false,
           predicates_added: [],
           game_position_evaluations: 4,
-          verdict: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
+          cells: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
         },
       ],
       final_predicates: [{ name: "r_zero", register: "r", value: 0 }],
       terminated_with: "converged",
-      verdict: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
+      cells: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
       lazy_lift_pending: true,
       approximant_reuse_enabled: false,
       warnings: [],
@@ -76,19 +76,19 @@ describe("CegarRunner", () => {
     expect(arg?.content).toContain("state 1 r");
     // M.6 parity defaults: may-edge off, no config-values.
     expect(arg?.may_edge_inference).toBe("off");
-    expect(arg?.config_values).toEqual([]);
+    expect(arg?.init_values).toEqual([]);
     // CTXDSL Phase 2 default: emit-ctxdsl off.
     expect(arg?.emit_ctxdsl).toBe(false);
   });
 
-  it("posts may_edge_inference and config_values when set (M.6 parity)", async () => {
+  it("posts may_edge_inference and init_values when set (M.6 parity)", async () => {
     const mocked = vi.mocked(endpoints.runBtor2Cegar);
     mocked.mockResolvedValue({
       success: true,
       iterations: [],
       final_predicates: [],
       terminated_with: "converged",
-      verdict: { true_cells: 0, false_cells: 0, unknown_cells: 0 },
+      cells: { true_cells: 0, false_cells: 0, unknown_cells: 0 },
       lazy_lift_pending: false,
       approximant_reuse_enabled: false,
       warnings: [],
@@ -110,7 +110,7 @@ describe("CegarRunner", () => {
     });
     const arg = mocked.mock.calls[0]?.[0];
     expect(arg?.may_edge_inference).toBe("smt-all-pairs");
-    expect(arg?.config_values).toEqual(["boot_fsm_ns=0,1,2,3,4,5,6,7"]);
+    expect(arg?.init_values).toEqual(["boot_fsm_ns=0,1,2,3,4,5,6,7"]);
   });
 
   it("posts engine=symbolic when the R-F5 engine is selected (R-F5.4.2b)", async () => {
@@ -120,7 +120,7 @@ describe("CegarRunner", () => {
       iterations: [],
       final_predicates: [],
       terminated_with: "symbolic-single-shot",
-      verdict: { true_cells: 1, false_cells: 0, unknown_cells: 1 },
+      cells: { true_cells: 1, false_cells: 0, unknown_cells: 1 },
       lazy_lift_pending: false,
       approximant_reuse_enabled: false,
       warnings: ["engine=symbolic (R-F5): single-shot"],
@@ -153,7 +153,7 @@ describe("CegarRunner", () => {
           had_failure_subgame: true,
           predicates_added: [{ name: "r_one", register: "r", value: 1 }],
           game_position_evaluations: 8,
-          verdict: { true_cells: 1, false_cells: 0, unknown_cells: 1 },
+          cells: { true_cells: 1, false_cells: 0, unknown_cells: 1 },
         },
         {
           iteration: 1,
@@ -161,7 +161,7 @@ describe("CegarRunner", () => {
           had_failure_subgame: false,
           predicates_added: [],
           game_position_evaluations: 3,
-          verdict: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
+          cells: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
         },
       ],
       final_predicates: [
@@ -169,7 +169,7 @@ describe("CegarRunner", () => {
         { name: "r_one", register: "r", value: 1 },
       ],
       terminated_with: "converged",
-      verdict: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
+      cells: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
       lazy_lift_pending: false,
       approximant_reuse_enabled: true,
       warnings: ["sample soundness warning"],
@@ -199,7 +199,7 @@ describe("CegarRunner", () => {
       iterations: [],
       final_predicates: [],
       terminated_with: "converged",
-      verdict: { true_cells: 0, false_cells: 0, unknown_cells: 0 },
+      cells: { true_cells: 0, false_cells: 0, unknown_cells: 0 },
       lazy_lift_pending: false,
       approximant_reuse_enabled: false,
       warnings: [],

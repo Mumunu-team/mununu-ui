@@ -20,9 +20,11 @@ import {
   runSvCegar,
   PredicateSpecRequest,
   Btor2CegarResponse,
+  SvFrontend,
 } from "../../api/endpoints";
 import { useExtractionStore } from "../../store/extractionStore";
 import { CegarTraceView } from "./CegarTraceView";
+import { SvFrontendSelect } from "./SvFrontendSelect";
 import { parsePredicates, parseLines } from "./cegarParsing";
 
 type SetundefPolicy = "zero" | "anyconst" | "anyseq";
@@ -34,7 +36,8 @@ export const SvCegarRunner = () => {
   const [formula, setFormula] = useState("nu X. <true> X");
   const [predicatesText, setPredicatesText] = useState("");
   const [top, setTop] = useState("");
-  const [useSv2v, setUseSv2v] = useState(true);
+  // sv2v keeps the former `use_sv2v: true` default (sv2v first, slang fallback).
+  const [frontend, setFrontend] = useState<SvFrontend>("sv2v");
   const [setundefPolicy, setSetundefPolicy] = useState<SetundefPolicy>("zero");
   const [controllableInputsText, setControllableInputsText] = useState("");
   const [predicateSource, setPredicateSource] = useState("wp");
@@ -51,7 +54,9 @@ export const SvCegarRunner = () => {
     setError(null);
     setResult(null);
     if (!sourceContent.trim()) {
-      setError("No SystemVerilog source loaded — complete the Load step first.");
+      setError(
+        "No SystemVerilog source loaded — complete the Load step first.",
+      );
       return;
     }
     if (!formula.trim()) {
@@ -81,23 +86,25 @@ export const SvCegarRunner = () => {
     setIsLoading(true);
     try {
       const response = await runSvCegar({
-        source: sourceContent,
-        additional_sources: additionalSources.map((s) => ({
-          name: s.name,
-          content: s.content,
-        })),
-        top: top.trim() || undefined,
-        use_sv2v: useSv2v,
+        lift: {
+          source: sourceContent,
+          additional_sources: additionalSources.map((s) => ({
+            name: s.name,
+            content: s.content,
+          })),
+          top: top.trim() || undefined,
+          frontend,
+        },
         setundef_anyseq: setundefPolicy === "anyseq",
         setundef_anyconst: setundefPolicy === "anyconst",
         formula,
         predicates,
-        controllable_inputs: controllableInputs,
+        controllable: controllableInputs,
         predicate_source: predicateSource,
         max_iterations: iterations,
         must_edge_inference: mustEdgeInference,
         may_edge_inference: mayEdgeInference,
-        config_values: configValues,
+        init_values: configValues,
         emit_ctxdsl: emitCtxdsl,
       });
       setResult(response);
@@ -307,22 +314,7 @@ export const SvCegarRunner = () => {
               }}
             />
           </label>
-          <label
-            style={{
-              fontSize: "0.9rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <input
-              type="checkbox"
-              aria-label="Run sv2v before Yosys"
-              checked={useSv2v}
-              onChange={(e) => setUseSv2v(e.target.checked)}
-            />
-            Run sv2v before Yosys (modern SV)
-          </label>
+          <SvFrontendSelect value={frontend} onChange={setFrontend} />
           <label
             style={{
               fontSize: "0.9rem",

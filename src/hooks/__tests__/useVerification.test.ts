@@ -44,12 +44,12 @@ vi.mock("../useRetry", () => ({
 }));
 
 const ALL_SATISFIED_RESPONSE = {
-  all_satisfied: true,
+  outcome: "holds",
   results: [
     {
       formula: "safety",
       automaton: "Main",
-      satisfied: true,
+      outcome: "holds",
       states: 4,
       labels: 3,
     },
@@ -57,10 +57,10 @@ const ALL_SATISFIED_RESPONSE = {
 };
 
 const PARTIAL_FAILURE_RESPONSE = {
-  all_satisfied: false,
+  outcome: "violated",
   results: [
-    { formula: "safety", automaton: "Main", satisfied: true },
-    { formula: "liveness", automaton: "Main", satisfied: false },
+    { formula: "safety", automaton: "Main", outcome: "holds" },
+    { formula: "liveness", automaton: "Main", outcome: "violated" },
   ],
 };
 
@@ -114,6 +114,23 @@ describe("useVerification", () => {
 
     expect(mockShowInfo).toHaveBeenCalledWith(
       "Verification completed — 1 formula(s) not satisfied",
+    );
+  });
+
+  it("verify: reports a sanity finding when every formula holds but the outcome is unknown", async () => {
+    mockVerifyContext.mockResolvedValueOnce({
+      ...ALL_SATISFIED_RESPONSE,
+      outcome: "unknown",
+    });
+    const { result } = renderHook(() => useVerification());
+
+    await act(async () => {
+      await result.current.verify("content");
+    });
+
+    expect(mockShowSuccess).not.toHaveBeenCalled();
+    expect(mockShowInfo).toHaveBeenCalledWith(
+      "All formulas satisfied — the model sanity checks found something to review",
     );
   });
 

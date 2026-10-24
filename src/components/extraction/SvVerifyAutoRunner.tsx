@@ -17,8 +17,11 @@ import {
   runSvVerifyAuto,
   SvVerifyAutoResponse,
   PropertyVerdictView,
+  SvFrontend,
 } from "../../api/endpoints";
 import { useExtractionStore } from "../../store/extractionStore";
+import { TraceView } from "../visualization/TraceView";
+import { SvFrontendSelect } from "./SvFrontendSelect";
 
 const outcomeColor = (outcome: string): string => {
   switch (outcome) {
@@ -69,17 +72,16 @@ export const SvVerifyAutoRunner = () => {
     useExtractionStore();
 
   const [top, setTop] = useState("");
-  const [useSv2v, setUseSv2v] = useState(true);
-  // Force the slang RTL front-end (read_slang) for modern-SV constructs
-  // yosys/sv2v reject (while loops, module-header package imports).
-  const [useSlang, setUseSlang] = useState(false);
+  // `lift.frontend`: sv2v keeps the former `use_sv2v: true` default; `slang`
+  // replaces the former "force slang" checkbox (while loops, package imports).
+  const [frontend, setFrontend] = useState<SvFrontend>("sv2v");
   const [maxIterations, setMaxIterations] = useState("16");
   const [mustEdgeInference, setMustEdgeInference] = useState("off");
   // R-F5.5d — predicate-cube engine selector ("explicit" | "symbolic").
   const [engine, setEngine] = useState("explicit");
   const [gateReset, setGateReset] = useState(true);
   const [autoStubFlops, setAutoStubFlops] = useState(true);
-  // H.J.b — config concretization: comma/newline-separated `signal=value`
+  // H.J.b — config pins (`pins`): comma/newline-separated `signal=value`
   // entries (e.g. `cfg_detect_timer_i=7`). Pins wide config inputs to constants
   // so comparisons against them become decidable (scope-reduced verdicts).
   const [configValues, setConfigValues] = useState("");
@@ -118,27 +120,28 @@ export const SvVerifyAutoRunner = () => {
     setIsLoading(true);
     try {
       const response = await runSvVerifyAuto({
-        source: sourceContent,
-        additional_sources: additionalSources.map((s) => ({
-          name: s.name,
-          content: s.content,
-        })),
-        top: top.trim() || undefined,
-        use_sv2v: useSv2v,
-        use_slang: useSlang,
+        lift: {
+          source: sourceContent,
+          additional_sources: additionalSources.map((s) => ({
+            name: s.name,
+            content: s.content,
+          })),
+          top: top.trim() || undefined,
+          frontend,
+          cutpoints: cutpoints
+            .split(/[\n,]/)
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0),
+        },
         max_iterations: iterations,
         must_edge_inference: mustEdgeInference,
         gate_reset: gateReset,
         auto_stub_flops: autoStubFlops,
-        config_values: configValues
+        pins: configValues
           .split(/[\n,]/)
           .map((s) => s.trim())
           .filter((s) => s.length > 0),
         counter_bounds: counterBounds
-          .split(/[\n,]/)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0),
-        cutpoint: cutpoints
           .split(/[\n,]/)
           .map((s) => s.trim())
           .filter((s) => s.length > 0),
@@ -259,38 +262,7 @@ export const SvVerifyAutoRunner = () => {
               <option value="smt-hyper-must">smt-hyper-must</option>
             </select>
           </label>
-          <label
-            style={{
-              fontSize: "0.9rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <input
-              type="checkbox"
-              aria-label="Run sv2v before Yosys"
-              checked={useSv2v}
-              onChange={(e) => setUseSv2v(e.target.checked)}
-            />
-            Run sv2v before Yosys (modern SV)
-          </label>
-          <label
-            style={{
-              fontSize: "0.9rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <input
-              type="checkbox"
-              aria-label="Force the slang RTL front-end"
-              checked={useSlang}
-              onChange={(e) => setUseSlang(e.target.checked)}
-            />
-            Force slang front-end (while loops, package imports)
-          </label>
+          <SvFrontendSelect value={frontend} onChange={setFrontend} />
           <label
             style={{
               fontSize: "0.9rem",
@@ -549,59 +521,11 @@ export const SvVerifyAutoRunner = () => {
                   {p.seeded_predicates.length > 0 && (
                     <div>predicates: {p.seeded_predicates.join(", ")}</div>
                   )}
-                  {p.counterexample &&
-                    p.counterexample.unreachable_target &&
-                    p.counterexample.unreachable_target.length > 0 && (
-                      <div
-                        style={{
-                          marginTop: "0.35rem",
-                          fontFamily: "monospace",
-                          fontSize: "0.8rem",
-                          color: outcomeColor("violated"),
-                        }}
-                      >
-                        counterexample: target UNREACHABLE from reset — the
-                        design never reaches{" "}
-                        {p.counterexample.unreachable_target.join(" ∧ ")}
-                      </div>
-                    )}
-                  {p.counterexample &&
-                    (!p.counterexample.unreachable_target ||
-                      p.counterexample.unreachable_target.length === 0) && (
-                      <div
-                        style={{
-                          marginTop: "0.35rem",
-                          fontFamily: "monospace",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        <div style={{ opacity: 0.8 }}>
-                          counterexample (stall lasso):
-                        </div>
-                        {p.counterexample.prefix.map((st, i) => (
-                          <div key={`pre-${i}`}>
-                            {"→ "}
-                            {st
-                              .map((c) => `${c.register}=${c.value}`)
-                              .join(", ")}
-                          </div>
-                        ))}
-                        {p.counterexample.cycle.map((st, i) => (
-                          <div
-                            key={`cyc-${i}`}
-                            style={{ color: outcomeColor("violated") }}
-                          >
-                            {i === 0 ? "↺ " : "  "}
-                            {st
-                              .map((c) => `${c.register}=${c.value}`)
-                              .join(", ")}
-                          </div>
-                        ))}
-                        <div style={{ opacity: 0.7 }}>
-                          cycle repeats forever — the property is avoided
-                        </div>
-                      </div>
-                    )}
+                  {p.trace && (
+                    <div style={{ marginTop: "0.35rem" }}>
+                      <TraceView trace={p.trace} />
+                    </div>
+                  )}
                 </div>
               </li>
             ))}

@@ -6,7 +6,7 @@ import type { paths } from "../api/types";
 import type cytoscape from "cytoscape";
 
 type ContextGraphsResponse =
-  paths["/api/v1/context/graphs"]["post"]["responses"]["200"]["content"]["application/json"];
+  paths["/api/v1/context/graph"]["post"]["responses"]["200"]["content"]["application/json"];
 
 export type GraphType = "dsl" | "unrolled";
 export type LayoutType = "dagre" | "breadthfirst" | "grid" | "preset";

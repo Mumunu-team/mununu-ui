@@ -62,9 +62,9 @@ export function VerdictTable({ report }: VerdictTableProps) {
 function Header({ report }: { report: VerifyReport }) {
   const { t } = useI18n();
   // mununu#595 — a VACUOUS conditional verdict (assumptions admit no fair
-  // path) is not a satisfied property, whatever `satisfied` says.
+  // path) is not a satisfied property, whatever `outcome` says.
   const satisfied = report.property_verdicts.filter(
-    (v) => v.satisfied && v.fair_path_exists !== false,
+    (v) => v.outcome === "holds" && v.fair_path_exists !== false,
   ).length;
   const total = report.property_verdicts.length;
   return (
@@ -170,16 +170,17 @@ function VerdictRow({ verdict }: { verdict: VerifyPropertyVerdict }) {
   // mununu#595 — a conditional verdict says what it holds UNDER; when the
   // assumptions admit no fair path it is VACUOUS (amber, not green): the
   // formula is true for nothing.
-  const vacuous = verdict.satisfied && verdict.fair_path_exists === false;
+  const holds = verdict.outcome === "holds";
+  const vacuous = holds && verdict.fair_path_exists === false;
   const conditional = (verdict.assumptions?.length ?? 0) > 0;
   const verdictClass = vacuous
     ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-    : verdict.satisfied
+    : holds
       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
       : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
   const verdictWord = vacuous
     ? t("extraction.verdictTable.verdictVacuous")
-    : verdict.satisfied
+    : holds
       ? t("extraction.verdictTable.verdictSatisfied")
       : t("extraction.verdictTable.verdictViolated");
   const verdictLabel = conditional

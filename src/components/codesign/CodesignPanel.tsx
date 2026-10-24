@@ -311,9 +311,10 @@ const CodesignVerifyView = ({
 }: {
   response: CodesignVerifyResponse;
 }) => {
-  const badge = response.satisfied
-    ? { bg: "#dff0d8", fg: "#1f5a1f", label: "HOLDS" }
-    : { bg: "#f8d7da", fg: "#8a1f1f", label: "VIOLATED" };
+  const badge =
+    response.outcome === "holds"
+      ? { bg: "#dff0d8", fg: "#1f5a1f", label: "HOLDS" }
+      : { bg: "#f8d7da", fg: "#8a1f1f", label: "VIOLATED" };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div

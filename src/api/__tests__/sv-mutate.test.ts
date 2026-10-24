@@ -10,7 +10,12 @@ const flipResponse: SvMutateResponse = {
   mutation: "stick:state_q",
   targets: null,
   properties: [
-    { name: "recoverable", baseline: "holds", mutant: "violated", flipped: true },
+    {
+      name: "recoverable",
+      baseline: "holds",
+      mutant: "violated",
+      flipped: true,
+    },
     { name: "unrelated", baseline: "holds", mutant: "holds", flipped: false },
   ],
   flipped: 1,
@@ -45,9 +50,9 @@ describe("runSvMutate (POST /sv/mutate)", () => {
     });
 
     const req: SvMutateRequest = {
-      source: "module m; endmodule",
+      lift: { source: "module m; endmodule", frontend: "slang" },
       mutation: "stick:state_q",
-      use_slang: true,
+      pins: ["rst_ni=1"],
     };
     const out = await runSvMutate(req);
 
@@ -55,6 +60,8 @@ describe("runSvMutate (POST /sv/mutate)", () => {
     const [endpoint, payload] = postSpy.mock.calls[0];
     expect(endpoint).toBe("/sv/mutate");
     expect((payload as SvMutateRequest).mutation).toBe("stick:state_q");
+    expect((payload as SvMutateRequest).pins).toEqual(["rst_ni=1"]);
+    expect((payload as SvMutateRequest).lift.frontend).toBe("slang");
 
     expect(out.flipped).toBe(1);
     // The property that caught the mutation flipped holds → violated.
@@ -72,7 +79,10 @@ describe("runSvMutate (POST /sv/mutate)", () => {
       config: {} as unknown,
     });
 
-    const req: SvMutateRequest = { source: "module m; endmodule", list: true };
+    const req: SvMutateRequest = {
+      lift: { source: "module m; endmodule" },
+      list: true,
+    };
     const out = await runSvMutate(req);
 
     expect(postSpy).toHaveBeenCalledTimes(1);

@@ -3,7 +3,7 @@
  * lift workflow panel.
  *
  * Surface-parity peer of the CLI's `mununu btor2 cegar
- * --controllable-input ... --predicate ...` invocation (shipped at
+ * --controllable ... --predicate ...` invocation (shipped at
  * commit `62a20ef`) and the API's `/api/v1/context/import` endpoint
  * extension (shipped at the same backend commit as this UI).
  *
@@ -114,7 +114,7 @@ export const V6ControllabilityAwareLiftPanel = () => {
         format: "btor2",
         filename: "v6_lift.btor2",
         predicates,
-        controllable_inputs: controllableInputs,
+        controllable: controllableInputs,
       });
       setResult({
         ctxdsl: response.ctxdsl,

@@ -26,7 +26,7 @@ const mockReport: VerifyReport = {
       },
       formula: "mu X. (done || <> X)",
       over: "Triage",
-      satisfied: true,
+      outcome: "holds",
       total_states: 4,
       satisfying_states: 4,
       initial_states: ["classify"],
@@ -80,7 +80,7 @@ describe("verifyProject (POST /verify)", () => {
     expect((payload as VerifyProjectRequest).base_dir).toBe("/tmp/work");
     expect(report.project).toBe("Demo");
     expect(report.property_verdicts).toHaveLength(1);
-    expect(report.property_verdicts[0].satisfied).toBe(true);
+    expect(report.property_verdicts[0].outcome).toBe("holds");
   });
 
   it("uses the extended (120s) HTTP client — verify_project can be long-running", async () => {
@@ -104,7 +104,9 @@ describe("verifyProject (POST /verify)", () => {
     };
     await verifyProject(req);
     const [, payload] = postSpy.mock.calls[0];
-    expect((payload as VerifyProjectRequest).cluster_similarity_floor).toBe(0.7);
+    expect((payload as VerifyProjectRequest).cluster_similarity_floor).toBe(
+      0.7,
+    );
   });
 });
 

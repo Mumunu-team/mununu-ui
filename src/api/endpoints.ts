@@ -1,5 +1,30 @@
 import { apiClient, aiApiClient } from "./client";
-import type { paths } from "./types";
+import type { components, paths } from "./types";
+
+// ---------------------------------------------------------------------------
+// The one counterexample shape of mununu 0.5 (`crate::trace::Trace`): every
+// verb that returns a path — RTL (register cells) or CTXDSL (state names +
+// transition labels) — returns a `Trace`.
+// ---------------------------------------------------------------------------
+
+/** One register's concrete value in a counterexample state (`value` is `null` above 64 bits; read `hex`). */
+export type CexCellView = components["schemas"]["CexCellView"];
+/** What a {@link Trace} shows: `finite` | `lasso` | `trap` | `unreachable` | `attack`. */
+export type TraceKind = components["schemas"]["TraceKind"];
+/** One fault injection on a {@link TraceStep}. */
+export type TraceFault = components["schemas"]["TraceFault"];
+/** One step of a {@link Trace}: the state at `cycle` and what drives the step out of it. */
+export type TraceStep = components["schemas"]["TraceStep"];
+/** A generated Verilator counterexample-replay testbench. */
+export type TestbenchView = components["schemas"]["TestbenchView"];
+/** The counterexample path every 0.5 verb returns. */
+export type Trace = components["schemas"]["Trace"];
+
+/**
+ * The verdict envelope of a CTXDSL formula (`/context/eval`, `/codesign/verify`,
+ * `/verify`): `holds` iff every initial state satisfies the formula.
+ */
+export type FormulaOutcome = "holds" | "violated";
 
 // Context endpoint type aliases
 type ContextSummarizeRequest =
@@ -8,14 +33,14 @@ type ContextSummarizeResponse =
   paths["/api/v1/context/summarize"]["post"]["responses"]["200"]["content"]["application/json"];
 
 type ContextGraphsRequest =
-  paths["/api/v1/context/graphs"]["post"]["requestBody"]["content"]["application/json"] & {
+  paths["/api/v1/context/graph"]["post"]["requestBody"]["content"]["application/json"] & {
     include_controllers?: boolean;
     minimize_controllers?: boolean;
   };
 type ContextGraphsResponse =
-  paths["/api/v1/context/graphs"]["post"]["responses"]["200"]["content"]["application/json"];
+  paths["/api/v1/context/graph"]["post"]["responses"]["200"]["content"]["application/json"];
 
-// Verification types (matches mununu backend /api/v1/context/verify)
+// Verification types (matches mununu backend /api/v1/context/eval)
 export interface ContextVerifyRequest {
   context: { name: string; content: string };
   sidecars?: { name: string; content: string }[];
@@ -35,18 +60,16 @@ export interface ContextVerifyRequest {
   sanity?: boolean;
 }
 
-/** A path through the model: `states[0] -labels[0]-> states[1] …`. */
-export interface SanityPath {
-  states: string[];
-  labels: string[];
-}
-
 /** Structural findings for one automaton (`mununu context eval --sanity`). */
 export interface SanityReport {
   automaton: string;
   reachable_states: number;
-  /** Reachable states with no outgoing transition, each with a shortest path from an initial state. */
-  deadlocks: SanityPath[];
+  /**
+   * Reachable states with no outgoing transition, each with a shortest path from
+   * an initial state — a `finite` {@link Trace} (`steps[].state_name`, the labels
+   * on `steps[].labels`).
+   */
+  deadlocks: Trace[];
   unreachable_states: string[];
   labels_never_fired: string[];
   /** Sets of states that can cycle forever on internal labels alone. */
@@ -80,7 +103,8 @@ export interface CounterstrategyResult {
 export interface FormulaVerificationResult {
   formula_name: string;
   automaton: string;
-  satisfied: boolean;
+  /** `holds` iff every initial state satisfies the formula, else `violated`. */
+  outcome: FormulaOutcome;
   total_states: number;
   satisfying_states: number;
   initial_states: string[];
@@ -92,7 +116,11 @@ export interface FormulaVerificationResult {
 
 export interface ContextVerifyResponse {
   success: boolean;
-  all_satisfied: boolean;
+  /**
+   * The worst `outcome` over `results`; `unknown` when every formula holds but a
+   * `sanity` report found something (the same reading as `context eval`'s exit code).
+   */
+  outcome: FormulaOutcome | "unknown";
   results: FormulaVerificationResult[];
   /** One report per checked automaton, present when `sanity` was requested. */
   sanity?: SanityReport[];
@@ -113,7 +141,7 @@ export const getContextGraphs = async (
   request: ContextGraphsRequest,
 ): Promise<ContextGraphsResponse> => {
   const response = await apiClient.post<ContextGraphsResponse>(
-    "/context/graphs",
+    "/context/graph",
     request,
   );
   return response.data;
@@ -126,7 +154,7 @@ export const verifyContext = async (
 ): Promise<ContextVerifyResponse> => {
   const client = request.counterstrategy ? aiApiClient : apiClient;
   const response = await client.post<ContextVerifyResponse>(
-    "/context/verify",
+    "/context/eval",
     request,
   );
   return response.data;
@@ -153,11 +181,11 @@ export interface ContextImportRequest {
    * R.6.7 / V.6 (2026-06-09) — predicate set for the
    * controllability-aware predicate-cube lift. Each entry is a
    * {name, register, value} triple identifying a register-value
-   * equality predicate. When non-empty AND `controllable_inputs` is
+   * equality predicate. When non-empty AND `controllable` is
    * non-empty AND `format === "btor2"`, the backend's
    * `predicate_cube_lift` is invoked + the resulting KMTS is
-   * returned. Mirrors the CLI's `--predicate NAME:REG=VALUE` flag
-   * on `mununu btor2 cegar`.
+   * returned. Mirrors the CLI's `--predicate [NAME:]REG == VALUE`
+   * flag on `mununu btor2 cegar`.
    *
    * SV-yosys routing (run sv2v + Yosys + lift in one call) is a
    * follow-up; today the user runs `mununu sv emit-btor2-per-module`
@@ -167,11 +195,11 @@ export interface ContextImportRequest {
   predicates?: PredicateSpecRequest[];
   /**
    * R.6.7 / V.6 (2026-06-09) — names of BTOR2 input symbols the
-   * controller drives. Mirrors the CLI's `--controllable-input`
-   * flag. When non-empty AND `predicates` is non-empty, opts the
-   * import path into the R.6.6 controllability-aware lift.
+   * controller drives. Mirrors the CLI's `--controllable` flag. When
+   * non-empty AND `predicates` is non-empty, opts the import path
+   * into the R.6.6 controllability-aware lift.
    */
-  controllable_inputs?: string[];
+  controllable?: string[];
 }
 
 /**
@@ -255,9 +283,9 @@ export interface Btor2CegarRequest {
   predicates: PredicateSpecRequest[];
   /**
    * Optional R.6.6 controllability split — controller-driven input
-   * symbols (mirrors `--controllable-input`).
+   * symbols (mirrors `--controllable`).
    */
-  controllable_inputs?: string[];
+  controllable?: string[];
   /** Predicate-discovery source: `"wp"` (default) | `"craig"`. */
   predicate_source?: string;
   /** Max CEGAR iterations (default 16). */
@@ -275,12 +303,12 @@ export interface Btor2CegarRequest {
    */
   may_edge_inference?: string;
   /**
-   * R-S8 symbolic-init config-values, one entry per register as
-   * `"REG=v1,v2,..."` (mirrors the CLI `--config-values`). Each register's
+   * R-S8 symbolic-init power-up values, one entry per register as
+   * `"REG=v1,v2,..."` (mirrors the CLI `--init-values`). Each register's
    * admissible power-up set seeds the predicate-cube initial states. Needed
    * for init-hazard properties (e.g. the M.4 Caliptra `boot_fsm_ns` CWE-1245).
    */
-  config_values?: string[];
+  init_values?: string[];
   /**
    * CTXDSL Phase 2 — opt-in (default `false`): when `true`, the response
    * carries a `ctxdsl` field with the final refined cube model + the checked
@@ -307,6 +335,11 @@ export interface CegarVerdictSummary {
   false_cells: number;
   /** KleeneBot (unknown — needs refinement) cells. */
   unknown_cells: number;
+  /**
+   * Cells the lift did not decide (unsatisfiable / unreachable cubes) — ⊥ by
+   * construction and NOT in `unknown_cells`. Optional: older mocks omit it.
+   */
+  unlifted_cells?: number;
 }
 
 /** A predicate spec, response-shaped (`register == value`). */
@@ -326,16 +359,6 @@ export interface WitnessCellView {
   valuation: Record<string, boolean>;
 }
 
-/**
- * Track I.1 (trace slice) — a reachability countertrace for a VIOLATED verdict:
- * the ordered sequence of failing cube cells from an initial cell to a trap (a
- * cell whose every successor stays `False`), plus whether the path ends in one.
- */
-export interface CounterTraceView {
-  steps: WitnessCellView[];
-  ends_in_trap: boolean;
-}
-
 /** One CEGAR iteration, viewer-shaped. */
 export interface CegarIterationView {
   iteration: number;
@@ -351,7 +374,7 @@ export interface CegarIterationView {
   /** Proxy counter for game-position evaluations (reuse diagnostics). */
   game_position_evaluations: number;
   /** Cell-count summary of this iteration's 3-valued verdict. */
-  verdict: CegarVerdictSummary;
+  cells: CegarVerdictSummary;
 }
 
 /**
@@ -369,8 +392,11 @@ export interface Btor2CegarResponse {
    * `"bounded-iterations-reached"` | `"predicate-source-exhausted"`.
    */
   terminated_with: string;
-  /** Cell-count summary of the final 3-valued verdict. */
-  verdict: CegarVerdictSummary;
+  /**
+   * Cell-count summary of the final 3-valued verdict, over every cell (not only
+   * the initial ones) — so cegar carries no single `outcome`.
+   */
+  cells: CegarVerdictSummary;
   /** `true` when the eager `predicate_cube_lift` was used (R.2.5 MVP). */
   lazy_lift_pending: boolean;
   /** Whether prior-iteration approximants were threaded forward. */
@@ -379,22 +405,23 @@ export interface Btor2CegarResponse {
   warnings: string[];
   /**
    * Track I.1 — cube cells that falsify the formula (definite-False), each
-   * decoded to its predicate valuation. Capped; `verdict.false_cells` is the
+   * decoded to its predicate valuation. Capped; `cells.false_cells` is the
    * full total. Empty unless the outcome is VIOLATED. (Optional in the type for
    * back-compat with older mocks; the current backend always populates it.)
    */
   violating_cells?: WitnessCellView[];
   /**
    * Track I.1 — cube cells the abstraction cannot decide (⊥), each decoded to
-   * its predicate valuation. Capped; `verdict.unknown_cells` is the full total.
+   * its predicate valuation. Capped; `cells.unknown_cells` is the full total.
    */
   undecided_cells?: WitnessCellView[];
   /**
-   * Track I.1 (trace slice) — reachability countertrace for a VIOLATED verdict.
-   * Present only when the property is violated at the initial cell. (Optional in
-   * the type for back-compat with older mocks.)
+   * Track I.1 (trace slice) — reachability countertrace for a VIOLATED verdict:
+   * a `finite` (or `trap`, when it ends in one) {@link Trace} whose steps list
+   * each cube cell's predicates as 1-bit cells. Present only when the property
+   * is violated at the initial cell.
    */
-  counterexample?: CounterTraceView;
+  trace?: Trace;
   /**
    * Track I.1 (undecided-explanation) — when the final verdict still carries ⊥
    * (unknown) cells, the registers the failure subgame flagged as load-bearing.
@@ -434,6 +461,18 @@ export const runBtor2Cegar = async (
 export interface Btor2VerifyRequest {
   /** BTOR2 source content. */
   content: string;
+  /**
+   * Safety engine: `"portfolio"` (default, the bit-level reachability portfolio)
+   * or `"cube"` (the KMTS 3-valued predicate cube). Mirrors `--engine`.
+   */
+  engine?: "portfolio" | "cube";
+  /**
+   * On a `violated` verdict, re-derive the shallowest reset → `bad` path with
+   * native BMC and return it as `trace` (mirrors `--witness`).
+   */
+  witness?: boolean;
+  /** The BMC bound for `witness` (mirrors `--witness-max-k`, default 200). */
+  witness_max_k?: number;
 }
 
 /**
@@ -444,8 +483,8 @@ export interface Btor2VerifyRequest {
 export type PropertyVerdict = "holds" | "violated" | "unknown" | "skipped";
 
 /**
- * Response for `POST /api/v1/btor2/verify` — the canonical property verdict plus the
- * per-engine reachability breakdown.
+ * Response for `POST /api/v1/btor2/verify` (and `/sv/verify-bad`) — the canonical
+ * property verdict plus the per-engine reachability breakdown.
  */
 export interface Btor2VerifyResponse {
   /**
@@ -453,7 +492,7 @@ export interface Btor2VerifyResponse {
    * `"violated"` (reachable) | `"unknown"` (undecided / contradiction). The
    * reachability detail is in `reachable_by` / `unreachable_by` + `contradiction`.
    */
-  verdict: PropertyVerdict;
+  outcome: PropertyVerdict;
   /** Engines that found `bad` reachable (a real counterexample). */
   reachable_by: string[];
   /** Engines that proved `bad` unreachable (a real safety proof). */
@@ -462,6 +501,19 @@ export interface Btor2VerifyResponse {
    * `true` when two sound engines disagree — a soundness alarm, not a guess.
    */
   contradiction: boolean;
+  /** The single engine's own diagnosis under `engine: "cube"`, when it has one. */
+  detail?: string;
+  /**
+   * The counterexample: with `witness` and a `violated` verdict, the shallowest
+   * reset → `bad` path (`kind: "finite"`); with a fault `target`, the attack
+   * (`kind: "attack"`, injections on `steps[].faults`).
+   */
+  trace?: Trace;
+  /**
+   * With `witness`: the bound within which no path was re-derived although the
+   * verdict is `violated` (another engine found a deeper one).
+   */
+  trace_unavailable_within_k?: number;
 }
 
 /**
@@ -480,110 +532,85 @@ export const runBtor2Verify = async (
   return response.data;
 };
 
-// Response-liveness at scale (matches mununu backend /api/v1/btor2/verify-liveness)
+// Response liveness, its conjunction, fairness and justice — one route since
+// mununu 0.5 (matches mununu backend /api/v1/btor2/verify-liveness)
 
 /**
- * Request for the response-liveness endpoint
- * (`POST /api/v1/btor2/verify-liveness`). Mirrors the CLI
- * `mununu btor2 verify-liveness`: decides `AG(request → AF grant)` via the
- * liveness-to-safety reduction + the portfolio. `request` / `grant` are
- * register-comparison atom strings (e.g. `"st == 1"`).
+ * The liveness property fields shared by `/btor2/verify-liveness` and
+ * `/sv/verify-liveness`. Exactly one form per request: `request` + `grant`
+ * (`AG(request → AF grant)`, optionally under `fairness`), or `responses` (the
+ * conjunction `⋀ᵢ AG(aᵢ → AF bᵢ)`). Atoms are register comparisons (`"st == 1"`).
  */
-export interface Btor2VerifyLivenessRequest {
-  /** BTOR2 source content. */
-  content: string;
-  /** The request atom (`"REG op VALUE"`). */
-  request: string;
+export interface LivenessPropertyFields {
+  /** The request atom (`"REG op VALUE"`) of `AG(request → AF grant)`. */
+  request?: string;
   /** The grant atom that must eventually follow on every path. */
-  grant: string;
+  grant?: string;
+  /** Response pairs `"ANTE => CONS"`: the conjunction instead of one request / grant. */
+  responses?: string[];
+  /**
+   * Fairness atoms assumed to hold infinitely often on every path considered
+   * (with `request` / `grant`): `(⋀ⱼ GF fairⱼ) → AG(request → AF grant)`.
+   */
+  fairness?: string[];
 }
 
-/** Response for `POST /api/v1/btor2/verify-liveness`. */
+/**
+ * Request for `POST /api/v1/btor2/verify-liveness`. Mirrors the CLI
+ * `mununu btor2 verify-liveness` (`--response`, `--fairness`, `--justice`).
+ */
+export interface Btor2VerifyLivenessRequest extends LivenessPropertyFields {
+  /** BTOR2 source content (with `justice`, ASCII AIGER 1.9 `aag …` too). */
+  content: string;
+  /** Decide the design's own `justice` lines (HWMCC semantics) instead of a response property. */
+  justice?: boolean;
+  /** With `justice`: `"exact"`, `"l2s"` or `"both"` (default). */
+  rung?: "exact" | "l2s" | "both";
+  /** With `justice`: wall-clock budget per justice set, in milliseconds. */
+  timeout_ms?: number;
+  /** With `justice` and `rung: "both"`: run both rungs concurrently. */
+  parallel_rungs?: boolean;
+}
+
+/** One justice set's verdict in a {@link Btor2VerifyLivenessResponse}. */
+export interface Btor2JusticeEntry {
+  /** Position among the design's `justice` lines (0-based). */
+  index: number;
+  /** Number of literals in the set. */
+  size: number;
+  /** `"holds"` (no fair infinite path) | `"violated"` (one exists) | `"unknown"`. */
+  outcome: PropertyVerdict;
+  /** The rung and engines that decided it. */
+  decided_by: string[];
+  /** Abstention reasons, when a rung abstained. */
+  notes: string[];
+}
+
+/** Response for `POST /api/v1/btor2/verify-liveness` (and `/sv/verify-liveness`). */
 export interface Btor2VerifyLivenessResponse {
   /** The canonical property verdict: `"holds"` | `"violated"` | `"unknown"`. */
-  verdict: PropertyVerdict;
-  /** The reduced property, echoed: `AG((<request>) -> AF (<grant>))`. */
+  outcome: PropertyVerdict;
+  /** The reduced property, echoed: `AG((<request>) -> AF (<grant>))`, or the conjunction. */
   property: string;
   /** Portfolio engines that decided the reduced `bad`-reachability query. */
   decided_by: string[];
+  /** With `justice`: one entry per justice line (`decided_by` is empty then). */
+  justice?: Btor2JusticeEntry[];
+  /** With `justice`: whether the content was ASCII AIGER lowered to BTOR2. */
+  converted_from_aiger?: boolean;
 }
 
 /**
- * Decide a response-liveness property `AG(request → AF grant)` at scale via the
- * liveness-to-safety reduction + the multi-engine portfolio. Z3- and
- * subprocess-heavy — uses the extended (`aiApiClient`, 120s) client.
+ * Decide a response-liveness property (one pair, a conjunction, under fairness)
+ * or the design's justice lines, via liveness-to-safety / the exact fair-cycle
+ * fixpoint + the multi-engine portfolio. Z3- and subprocess-heavy — uses the
+ * extended (`aiApiClient`, 120s) client.
  */
 export const runBtor2VerifyLiveness = async (
   request: Btor2VerifyLivenessRequest,
 ): Promise<Btor2VerifyLivenessResponse> => {
   const response = await aiApiClient.post<Btor2VerifyLivenessResponse>(
     "/btor2/verify-liveness",
-    request,
-  );
-  return response.data;
-};
-
-/**
- * Request for the conjunctive response-liveness endpoint
- * (`POST /api/v1/btor2/verify-liveness-all`). Mirrors the CLI
- * `mununu btor2 verify-liveness-all`: decides `⋀ᵢ AG(aᵢ → AF bᵢ)`. Each `responses`
- * entry is a `"ANTE => CONS"` pair of register-comparison atoms (at least one).
- */
-export interface Btor2VerifyLivenessAllRequest {
-  /** BTOR2 source content. */
-  content: string;
-  /** The response pairs, each `"ANTE => CONS"`. At least one required. */
-  responses: string[];
-}
-
-/**
- * Decide a conjunction of response-liveness properties `⋀ᵢ AG(aᵢ → AF bᵢ)` via N
- * liveness-to-safety reductions + the multi-engine portfolio. Reuses the
- * {@link Btor2VerifyLivenessResponse} shape (the `property` echoes the conjunction).
- * Z3-/subprocess-heavy — uses the extended (`aiApiClient`, 120s) client.
- */
-export const runBtor2VerifyLivenessAll = async (
-  request: Btor2VerifyLivenessAllRequest,
-): Promise<Btor2VerifyLivenessResponse> => {
-  const response = await aiApiClient.post<Btor2VerifyLivenessResponse>(
-    "/btor2/verify-liveness-all",
-    request,
-  );
-  return response.data;
-};
-
-/**
- * Request for the fair-cycle response-liveness endpoint
- * (`POST /api/v1/btor2/verify-liveness-under-fairness`, mununu#477 Option B).
- * Mirrors the CLI `mununu btor2 verify-liveness-under-fairness`: decides
- * `(⋀ⱼ GF fairⱼ) → AG(request → AF grant)` via the Emerson–Lei fair-cycle l2s.
- * Empty `fairness` recovers {@link Btor2VerifyLivenessRequest} exactly.
- */
-export interface Btor2VerifyLivenessUnderFairnessRequest {
-  /** BTOR2 source content. */
-  content: string;
-  /** The request atom (`"REG op VALUE"`). */
-  request: string;
-  /** The grant atom that must eventually follow on every path. */
-  grant: string;
-  /**
-   * Fairness atoms — each a `"REG op VALUE"` register-comparison atom whose
-   * satisfaction is assumed to hold infinitely often on every path considered.
-   * Empty recovers the plain `verify-liveness` semantics.
-   */
-  fairness?: string[];
-}
-
-/**
- * Decide `(⋀ⱼ GF fairⱼ) → AG(request → AF grant)` via the Emerson–Lei fair-cycle
- * l2s + the multi-engine portfolio. Reuses the {@link Btor2VerifyLivenessResponse}
- * shape. Z3-/subprocess-heavy — uses the extended (`aiApiClient`, 120s) client.
- */
-export const runBtor2VerifyLivenessUnderFairness = async (
-  request: Btor2VerifyLivenessUnderFairnessRequest,
-): Promise<Btor2VerifyLivenessResponse> => {
-  const response = await aiApiClient.post<Btor2VerifyLivenessResponse>(
-    "/btor2/verify-liveness-under-fairness",
     request,
   );
   return response.data;
@@ -665,8 +692,8 @@ export interface Btor2VerifyRecoverabilityRequest {
   /** The `good` atom to recover to (`"REG op VALUE"`). */
   target: string;
   /**
-   * Optional extra abstraction predicates (`"NAME:REG=VALUE"`) that refine the
-   * predicate-cube when the exact engine abstains (over its ~40-bit cap) and the
+   * Optional extra abstraction predicates (`"[NAME:]REG == VALUE"`) that refine the
+   * predicate-cube when the exact engine abstains (over its bit cap) and the
    * `smt-hyper-must` scale path runs. The escalation is automatic; these only help
    * the cube path decide. Omit for the common (small/medium) case.
    */
@@ -680,9 +707,9 @@ export interface Btor2VerifyRecoverabilityRequest {
   /**
    * Config-partition (capability A): config inputs to split the verdict over, each `"NAME=v1,v2,..."`.
    * The `refinement.config_partition` then reports "holds for configs {A}, violated for {B}", decided
-   * exactly per config. Implies the refined output. Mirrors the CLI `--config-values`.
+   * exactly per config. Implies the refined output. Mirrors the CLI `--partition`.
    */
-  config_values?: string[];
+  partitions?: string[];
   /**
    * Assumption discovery (capability B): when the property does NOT hold, search for an environment
    * assumption φ under which it becomes a non-vacuous HOLDS → `refinement.holds_under`. Conditional-only
@@ -699,7 +726,7 @@ export interface Btor2VerifyRecoverabilityResponse {
    * `target`) | `"violated"` (a reachable trap cannot) | `"unknown"` (over the
    * exact engine's cap; the cube + smt-hyper-must path scales it).
    */
-  verdict: PropertyVerdict;
+  outcome: PropertyVerdict;
   /** The decided property, echoed: `AG EF (<target>)`. */
   property: string;
   /** The structured refinement, when `refine` was requested and it produced one. */
@@ -745,9 +772,10 @@ export interface FsmRegisterFinding {
   legal_encodings: number[];
   /**
    * Canonical verdict — `"holds"` (stays within its encoding) | `"violated"` (an
-   * illegal encoding is reachable) | `"unknown"` (the portfolio could not decide).
+   * illegal encoding is reachable) | `"unknown"` (the portfolio could not decide) |
+   * `"skipped"` (a counter register, not checked).
    */
-  verdict: PropertyVerdict;
+  outcome: PropertyVerdict;
   /** `true` when an illegal encoding is reachable (a finding). */
   illegal_encoding_reachable: boolean;
 }
@@ -756,7 +784,7 @@ export interface FsmRegisterFinding {
 export interface Btor2CheckFsmResponse {
   /** Number of FSM-like state registers scanned. */
   fsm_registers_checked: number;
-  /** Number of registers with a reachable illegal encoding (`verdict === "violated"`). */
+  /** Number of registers with a reachable illegal encoding (`outcome === "violated"`). */
   illegal_encodings_found: number;
   /** Per-register results. */
   registers: FsmRegisterFinding[];
@@ -875,23 +903,14 @@ export type TwoPlayerStrategy =
     };
 
 /** Response for `POST /api/v1/btor2/game`. */
-/**
- * P2.5-F (b) — the ENVIRONMENT STARVATION LASSO for an unrealizable RECURRENCE game: a concrete play
- * (reset → repeating `¬good` `cycle`, with the env's per-step `inputs`) proving the environment can
- * starve `good` forever — the actionable Büchi counterpart of `realizable = false`. The `inputs` are
- * the actionable signal (e.g. the ack the environment holds low each cycle); replay them in Verilator
- * to observe `good` false on the cycle.
- */
-export interface StallLassoView {
-  /** States from reset up to (excluding) the cycle entry. */
-  prefix: CexCellView[][];
-  /** The repeating `¬good` cycle; the last state steps back to `cycle[0]`. */
-  cycle: CexCellView[][];
-  /** The environment's input at each transition of `prefix ++ cycle` (`inputs[i]` drives step `i`). */
-  inputs?: CexCellView[][];
-}
-
 export interface Btor2GameResponse {
+  /**
+   * The verdict envelope: without faults, `holds` iff the controller wins
+   * (`realizable`); `detail` says whose objective the outcome is about.
+   */
+  outcome: "holds" | "violated";
+  /** Whose objective `outcome` is about, in words. */
+  detail: string;
   /**
    * `true` = the controller can force `good` against every environment move (realizable);
    * `false` = the environment can prevent it (unrealizable).
@@ -908,7 +927,7 @@ export interface Btor2GameResponse {
    * realizable, else an `environment_counterstrategy` (why no controller works — e.g. an ack the
    * environment withholds). For `objective = "recurrence"`: the CONTROLLER's Büchi strategy (force
    * `good` infinitely often) when realizable, absent when not — the unrealizable recurrence witness is
-   * `stall_lasso`.
+   * `trace`.
    *
    * Present only for a STATE-register `good`: the strategy is state-indexed, so it is absent for a
    * combinational-output / relational target (a FIFO's `full_o`), where `realizable` + `holds_under`
@@ -922,12 +941,13 @@ export interface Btor2GameResponse {
    */
   holds_under?: DiscoveredAssumption[];
   /**
-   * The environment starvation lasso for an unrealizable RECURRENCE game (the Büchi analog of the
-   * reach counterstrategy in `strategy`): the concrete play where the environment starves `good`
-   * forever. Present only for `objective = "recurrence"` when unrealizable and a simple reachable
-   * force-`¬good`-forever region exists.
+   * The environment starvation lasso (a `lasso` {@link Trace}: reset → a repeating `¬good` cycle
+   * from `loop_start`, with the environment's per-step `inputs`) for an unrealizable RECURRENCE game
+   * — the Büchi analog of the reach counterstrategy in `strategy`. Present only for
+   * `objective = "recurrence"` when unrealizable and a simple reachable force-`¬good`-forever region
+   * exists.
    */
-  stall_lasso?: StallLassoView;
+  trace?: Trace;
 }
 
 /**
@@ -944,54 +964,72 @@ export const runBtor2Game = async (
   return response.data;
 };
 
-// SV-direct verbs (matches mununu backend /api/v1/sv/verify{,-liveness,-recoverability})
-// Lift SV (sv2v + Yosys) then decide a property in one call — no emit-btor2 step.
-// They return the same Btor2Verify*Response shapes as the BTOR2-direct verbs.
+// SV-direct verbs (matches mununu backend /api/v1/sv/verify-bad, /sv/verify-liveness,
+// /sv/verify-recoverability). Lift SV then decide a property in one call — no
+// emit-btor2 step. They return the same Btor2Verify*Response shapes as the
+// BTOR2-direct verbs.
 
-/** The SV → BTOR2 lift inputs shared by the SV-direct verb requests. */
-export interface SvLiftFields {
-  /** SystemVerilog primary source content. */
+/**
+ * The RTL front end of a lift: `auto` (the server's default order), `verilog`
+ * (yosys `read_verilog`), `slang` (the yosys-slang plugin) or `sv2v` (sv2v first,
+ * then the `auto` order with its slang fallback). Mirrors the CLI `--frontend`.
+ */
+export type SvFrontend = "auto" | "verilog" | "slang" | "sv2v";
+
+/**
+ * The SV design and how to lift it — the `lift` object every `sv/*` request
+ * nests (the API peer of the CLI's shared lift flags). The backend refuses
+ * unknown keys with a 400, so only these fields may be sent.
+ */
+export interface SvLiftRequest {
+  /** The primary SystemVerilog source. */
   source: string;
-  /** Additional SV sources (packages / includes). */
+  /** The primary source's file name, which `lift_overrides` match (default `<top>.sv`). */
+  source_name?: string;
+  /** Additional SV sources (packages, includes, submodules). */
   additional_sources?: { name: string; content: string }[];
-  /** Top module for the lift (auto-detect when omitted). */
+  /** Top module (auto-detected when omitted). */
   top?: string;
-  /** Run sv2v before Yosys (modern SV). Default `false`. */
-  use_sv2v?: boolean;
-  /** Force the slang RTL front-end (`read_slang`) for modern-SV constructs
-   * yosys/sv2v reject (`while` loops, `import pkg::*;`). Requires the
-   * yosys-slang plugin server-side. Default `false`. */
-  use_slang?: boolean;
+  /** The RTL front end (default `auto`). */
+  frontend?: SvFrontend;
+  /** Parameter overrides, `NAME=VALUE` or `MODULE.NAME=VALUE` (mirrors `--param`). */
+  params?: string[];
+  /** Lift-only replacements of a source by file name (mirrors `--lift-override`). */
+  lift_overrides?: { name: string; content: string }[];
+  /**
+   * Control-slice cut points: each named net becomes a free input (an
+   * over-approximation; mirrors `--cutpoint`).
+   */
+  cutpoints?: string[];
+  /**
+   * Lift a multi-clock design onto one implicit clock instead of refusing it — an
+   * UNDER-approximation (a HOLDS does not transfer).
+   */
+  merge_clock_domains?: boolean;
 }
 
-/** Request for `POST /api/v1/sv/verify` (SV-direct safety portfolio). */
-export type SvVerifyRequest = SvLiftFields;
-
-/** Request for `POST /api/v1/sv/verify-liveness` (SV-direct response liveness). */
-export interface SvVerifyLivenessRequest extends SvLiftFields {
-  /** The request atom (`"REG op VALUE"`). */
-  request: string;
-  /** The grant atom that must eventually follow on every path. */
-  grant: string;
+/** Request for `POST /api/v1/sv/verify-bad` (SV-direct safety portfolio). */
+export interface SvVerifyBadRequest {
+  lift: SvLiftRequest;
 }
 
 /**
- * Request for `POST /api/v1/sv/verify-liveness-all` (SV-direct conjunction of
- * response-liveness properties `⋀ᵢ AG(aᵢ → AF bᵢ)`).
+ * Request for `POST /api/v1/sv/verify-liveness` (SV-direct response liveness:
+ * one pair, a conjunction via `responses`, or a pair under `fairness`).
  */
-export interface SvVerifyLivenessAllRequest extends SvLiftFields {
-  /** The response pairs, each `"ANTE => CONS"`. At least one required. */
-  responses: string[];
+export interface SvVerifyLivenessRequest extends LivenessPropertyFields {
+  lift: SvLiftRequest;
 }
 
 /** Request for `POST /api/v1/sv/verify-recoverability` (SV-direct `AG EF good`). */
-export interface SvVerifyRecoverabilityRequest extends SvLiftFields {
+export interface SvVerifyRecoverabilityRequest {
+  lift: SvLiftRequest;
   /** The `good` atom to recover to (`"REG op VALUE"`). */
   target: string;
   /**
-   * Optional extra abstraction predicates (`"NAME:REG=VALUE"`) for the cube +
+   * Optional extra abstraction predicates (`"[NAME:]REG == VALUE"`) for the cube +
    * `smt-hyper-must` scale path (used only when the exact engine abstains over its
-   * ~40-bit cap; the escalation is automatic). Omit for the common case.
+   * bit cap; the escalation is automatic). Omit for the common case.
    */
   predicates?: string[];
   /**
@@ -1001,9 +1039,9 @@ export interface SvVerifyRecoverabilityRequest extends SvLiftFields {
   refine?: boolean;
   /**
    * Config-partition (capability A): config inputs to split the verdict over, each `"NAME=v1,v2,..."`
-   * → `refinement.config_partition`. Implies the refined output. Mirrors the CLI `--config-values`.
+   * → `refinement.config_partition`. Implies the refined output. Mirrors the CLI `--partition`.
    */
-  config_values?: string[];
+  partitions?: string[];
   /**
    * Assumption discovery (capability B): search for an enabling φ when the property does not hold →
    * `refinement.holds_under` (conditional-only). Mirrors the CLI `--discover-assumptions`.
@@ -1014,38 +1052,24 @@ export interface SvVerifyRecoverabilityRequest extends SvLiftFields {
 /**
  * Lift SV and decide `bad`-reachability of its assertions with the multi-engine
  * safety portfolio. Z3-/subprocess-heavy — uses the extended (`aiApiClient`, 120s)
- * client. The server host needs sv2v + Yosys.
+ * client. The server host needs the lift tools (Yosys; sv2v / slang per `frontend`).
  */
-export const runSvVerify = async (
-  request: SvVerifyRequest,
+export const runSvVerifyBad = async (
+  request: SvVerifyBadRequest,
 ): Promise<Btor2VerifyResponse> => {
   const response = await aiApiClient.post<Btor2VerifyResponse>(
-    "/sv/verify",
+    "/sv/verify-bad",
     request,
   );
   return response.data;
 };
 
-/** Lift SV and decide `AG(request → AF grant)` in one call. */
+/** Lift SV and decide a response-liveness property in one call. */
 export const runSvVerifyLiveness = async (
   request: SvVerifyLivenessRequest,
 ): Promise<Btor2VerifyLivenessResponse> => {
   const response = await aiApiClient.post<Btor2VerifyLivenessResponse>(
     "/sv/verify-liveness",
-    request,
-  );
-  return response.data;
-};
-
-/**
- * Lift SV and decide the conjunction `⋀ᵢ AG(aᵢ → AF bᵢ)` from `"ANTE => CONS"`
- * response pairs in one call. Reuses the {@link Btor2VerifyLivenessResponse} shape.
- */
-export const runSvVerifyLivenessAll = async (
-  request: SvVerifyLivenessAllRequest,
-): Promise<Btor2VerifyLivenessResponse> => {
-  const response = await aiApiClient.post<Btor2VerifyLivenessResponse>(
-    "/sv/verify-liveness-all",
     request,
   );
   return response.data;
@@ -1063,7 +1087,8 @@ export const runSvVerifyRecoverability = async (
 };
 
 /** Request for `POST /api/v1/sv/check-fsm` (SV-direct illegal-encoding scan). */
-export interface SvCheckFsmRequest extends SvLiftFields {
+export interface SvCheckFsmRequest {
+  lift: SvLiftRequest;
   /** Max state-register width treated as an FSM (wider = datapath/counter, skipped). */
   max_width?: number;
 }
@@ -1084,7 +1109,9 @@ export const runSvCheckFsm = async (
 };
 
 /** Request for `POST /api/v1/sv/lint` (SV-direct structural preflight). */
-export type SvLintRequest = SvLiftFields;
+export interface SvLintRequest {
+  lift: SvLiftRequest;
+}
 
 /**
  * Which `sv lint` check produced a finding.
@@ -1144,7 +1171,9 @@ export const runSvLint = async (
  * Request for `POST /api/v1/sv/mutate` (#468) — apply a NAMED structural mutation
  * and re-verify to check the property verdicts flip (property adequacy).
  */
-export interface SvMutateRequest extends SvLiftFields {
+export interface SvMutateRequest {
+  /** The SV design and how to lift it (module `params` live here). */
+  lift: SvLiftRequest;
   /** The mutation: `"stick:<reg>"` (freeze a register) or `"drop-reset:<reg>"`
    * (remove a register's reset arm). Required unless `list` is true. */
   mutation?: string;
@@ -1156,13 +1185,8 @@ export interface SvMutateRequest extends SvLiftFields {
   gate_reset?: boolean;
   /** Must-edge inference (`"smt-hyper-must"` for a recoverability drop-reset flip). */
   must_edge_inference?: string;
-  /** mununu#475 item 4 — parity with `/sv/verify-auto`'s `params`. Override
-   * module parameters before elaboration; each entry is `"NAME=VALUE"`
-   * (top-module scope) or `"MODULE.NAME=VALUE"` (submodule scope; slang
-   * applies it top-level by bare name). Shrinks a parameterised design so
-   * its counters fit the bit-blast cap during the baseline + mutant
-   * re-verify. A malformed entry is a HARD `BadRequest`. */
-  params?: string[];
+  /** Config pins for the baseline AND the mutant, each `"signal=value"` (mirrors `--pin`). */
+  pins?: string[];
 }
 
 /** The available mutation targets (the `list` response payload). */
@@ -1223,20 +1247,14 @@ export const runSvMutate = async (
 /**
  * cegar-extraction Stage 2 — SV-direct CEGAR request
  * (`POST /api/v1/sv/cegar`). Mirrors the CLI `mununu sv cegar`: the
- * backend lifts SystemVerilog to a flattened BTOR2 (sv2v + Yosys) and
- * runs the same refinement loop as `/btor2/cegar`, returning the same
+ * backend lifts SystemVerilog to a flattened BTOR2 and runs the same
+ * refinement loop as `/btor2/cegar`, returning the same
  * {@link Btor2CegarResponse}. The CEGAR fields match {@link Btor2CegarRequest};
- * only the source half differs (SV + Yosys options instead of raw BTOR2).
+ * only the source half differs (the `lift` object instead of raw BTOR2).
  */
 export interface SvCegarRequest {
-  /** SystemVerilog primary source content. */
-  source: string;
-  /** Additional SV source files (packages / sub-modules / includes). */
-  additional_sources?: { name: string; content: string }[];
-  /** Top module name (Yosys auto-detects when omitted). */
-  top?: string;
-  /** Run sv2v before Yosys (modern SV). */
-  use_sv2v?: boolean;
+  /** The SV design and how to lift it. */
+  lift: SvLiftRequest;
   /** Yosys `setundef -anyseq` (per-cycle havoc). */
   setundef_anyseq?: boolean;
   /** Yosys `setundef -anyconst` (constant power-up nondeterminism). */
@@ -1244,17 +1262,17 @@ export interface SvCegarRequest {
   // --- CEGAR params (identical to Btor2CegarRequest) ---
   formula: string;
   predicates: PredicateSpecRequest[];
-  controllable_inputs?: string[];
+  controllable?: string[];
   predicate_source?: string;
   max_iterations?: number;
   must_edge_inference?: string;
   may_edge_inference?: string;
-  config_values?: string[];
+  init_values?: string[];
   emit_ctxdsl?: boolean;
 }
 
 /**
- * Run SV-direct CEGAR in one call: lift SV (sv2v + Yosys) → BTOR2 →
+ * Run SV-direct CEGAR in one call: lift SV → BTOR2 →
  * refinement loop. sv2v/Yosys/Z3-heavy — uses the extended
  * (`aiApiClient`, 120s) client.
  */
@@ -1330,27 +1348,15 @@ export const runSvExtractSva = async (
 
 /** XL.6b — request for `POST /api/v1/sv/verify-auto`. */
 export interface SvVerifyAutoRequest {
-  /** SystemVerilog primary source content. */
-  source: string;
-  /** Additional SV sources (packages / `include` targets). */
-  additional_sources?: { name: string; content: string }[];
-  /** Top module for the SV → BTOR2 lift (auto-detect when omitted). */
-  top?: string;
-  /** Run sv2v before Yosys (modern SV). */
-  use_sv2v?: boolean;
-  /** Force the slang RTL front-end (`read_slang`) for modern-SV constructs
-   * yosys/sv2v reject. Requires the yosys-slang plugin server-side. Default `false`. */
-  use_slang?: boolean;
-  /** Module-parameter overrides applied via yosys `chparam -set` before the lift
-   * (mirrors the CLI `--param`). Each entry is `"NAME=VALUE"` (applied to the top
-   * module) or `"MODULE.NAME=VALUE"`. Shrinks a parameterised timing interval so
-   * its counters get smaller, without a wrapper module. A parameter yosys cannot
-   * apply is an ERROR (never silently dropped); verdicts are scoped to the applied
-   * values (surfaced as a `parameter-override` note). Default empty. */
-  params?: string[];
+  /**
+   * The SV design and how to lift it — module `params` and control-slice
+   * `cutpoints` (an over-approximation: a definite HOLDS transfers, a VIOLATED
+   * only when guard-independent) live here.
+   */
+  lift: SvLiftRequest;
   /** Max CEGAR iterations per property (default 16). */
   max_iterations?: number;
-  /** Must-edge inference per property (`"off"` default; `"smt-hyper-must"` for
+  /** Must-edge inference per property (default `"auto"`; `"smt-hyper-must"` for
    * sound νμ recoverability verdicts). */
   must_edge_inference?: string;
   /** Reset-gating: drop recognized `disable iff (reset)` guards and pin the
@@ -1360,73 +1366,37 @@ export interface SvVerifyAutoRequest {
    * `prim_sparse_fsm_flop`) so the register survives the lift (default
    * `true`). */
   auto_stub_flops?: boolean;
-  /** H.J.b — config concretization: pin wide config inputs to constants so
-   * comparisons against them become decidable. Each entry `"signal=value"`
-   * (e.g. `"cfg_detect_timer_i=7"`). Verdicts are then SCOPED to these values
-   * (surfaced as a `config-concretization` note). Default empty. */
-  config_values?: string[];
+  /** H.J.b — config pins: pin wide config inputs to constants so comparisons
+   * against them become decidable. Each entry `"signal=value"` (e.g.
+   * `"cfg_detect_timer_i=7"`). Verdicts are then SCOPED to these values
+   * (surfaced as a `config-concretization` note). Mirrors `--pin`. */
+  pins?: string[];
   /** H.H — counter upper bounds: seed a `signal <= value` cube-partition to
    * refine a counter-monotonicity property (`cnt_q >= $past(cnt_q)`) whose ⊥ is
-   * caused by the abstract wraparound. Each entry `"signal<=value"` (the
-   * `"signal=value"` spelling is also accepted). Sound (a partition, not an
-   * assumption); needs `must_edge_inference` on. Bounds are also auto-derived
-   * from `config_values`; a manual entry overrides the inferred one. Surfaced as
+   * caused by the abstract wraparound. Each entry `"signal<=value"`. Sound (a
+   * partition, not an assumption); needs `must_edge_inference` on. Surfaced as
    * a `counter-bound` note. Default empty. */
   counter_bounds?: string[];
-  /** Control-slice cut points, mirroring the CLI `--cutpoint`: net names to replace
-   * with a free `$anyseq` input in the SV → BTOR2 lift (Yosys `cutpoint w:<net>`), so
-   * the FSM's datapath guards drop out of the cone via cone-of-influence — the sound,
-   * netlist-level way to fit the `"exact-symbolic"` engine on a wide control FSM. Each
-   * entry is a bare net name (e.g. `"must_refresh"`). OVER-APPROXIMATION: a definite
-   * HOLDS transfers (safety + over-approx); a definite VIOLATED is sound only when
-   * guard-independent (an orphaned FSM state). Surfaced as a `control-slice` note.
-   * Default empty. */
-  cutpoint?: string[];
   /** Abstraction-predicate hints, mirroring the CLI `--predicate` and the in-source
    * `// @mununu_predicate <expr>` annotation (all three are merged). Each entry is a
    * predicate expression (`"reg == value"`, `"reg == reg"`, `"reg >= K"`) seeded as a
-   * cube dimension for EVERY property, even when absent from the property formula.
-   * Sound by monotonicity — a hint only refines the cube (a ⊥ can become definite; a
-   * definite verdict never flips; an unclassifiable hint is dropped). Default empty. */
+   * cube dimension for EVERY property. Sound by monotonicity. Default empty. */
   predicate?: string[];
   /**
-   * R-F5.5d — predicate-cube engine: `"explicit"` (default) or `"symbolic"`
-   * (R-F5 BDD relation + CEGAR loop, no per-cube-pair SMT). Mirrors the CLI
-   * `--engine`. The symbolic path handles moderate (≤ ~40-bit) designs in the
-   * cube-dimension-predicate + bare `[]`/`<>` fragment; larger/wide designs +
-   * derived predicates degrade to `Skipped` (they await the R-F5.6 COI work).
+   * Engine selector, mirroring the CLI `--engine`: `"explicit"`, `"symbolic"`,
+   * `"exact-symbolic"`, `"portfolio-sequential"` (the default), `"portfolio-parallel"`.
    */
   engine?: string;
-  /** mununu#476 item 4 — disable antecedent shadow-register synthesis for
-   * the exact-symbolic engine (default `false` ⇒ shadow-synth enabled, the
-   * shipped behaviour). Set `true` to force the Phase A refusal for SVA
-   * `|=>` properties whose antecedent combinationally reaches primary
-   * inputs — differential-oracle / debug knob mirrored on the CLI as
-   * `--no-antecedent-shadow` and via the process-global
-   * `MUNUNU_NO_ANTECEDENT_SHADOW=1` env var. Per-request opt-out here is
-   * thread-safe (unlike the env var). */
-  no_antecedent_shadow?: boolean;
-}
-
-/** One register's concrete value in a counterexample state. */
-export interface CexCellView {
-  register: string;
-  value: number;
-}
-
-/**
- * The exact engine's counterexample for a Violated property (`engine:
- * "exact-symbolic"`). Either a stall-lasso / trap-path — reset → `prefix` →
- * repeating `cycle` — witnessing a liveness/recoverability failure (`AF p` /
- * `AG AF p` / `AG EF p`), OR the A.4 unreachable-target witness for a bare `EF p`
- * (reachability): `unreachable_target` names the atoms the design never reaches,
- * with `prefix`/`cycle` empty (there is no trace — the target is simply unreachable).
- */
-export interface CounterexampleView {
-  prefix: CexCellView[][];
-  cycle: CexCellView[][];
-  /** A.4 — target atoms UNREACHABLE from reset (bare `EF p` violated); empty for lasso/trap witnesses. */
-  unreachable_target?: string[];
+  /** The ⊥ escalations by property shape (default `true`; the CLI's `--no-rescue` is `false`). */
+  rescue?: boolean;
+  /** Antecedent constant propagation on the exact engine (default `true`). */
+  antecedent_propagate?: boolean;
+  /** Inputs in the state on the exact engine (default `true`). */
+  input_state?: boolean;
+  /** Return a Verilator replay testbench with every counterexample (`trace.replay.testbench`). */
+  emit_testbench?: boolean;
+  /** The clock port the testbench toggles (default: the first conventional name the source declares). */
+  tb_clock?: string;
 }
 
 /** One property's auto-verification verdict (mirrors the backend view). */
@@ -1441,8 +1411,14 @@ export interface PropertyVerdictView {
   detail: string | null;
   /** The cube predicates auto-seeded for this property (atom strings). */
   seeded_predicates: string[];
-  /** D1.8b — a concrete stall-lasso counterexample (exact-symbolic engine). */
-  counterexample?: CounterexampleView;
+  /**
+   * The counterexample of a Violated property: `finite` (reset → violation, for
+   * safety), `lasso` (a stall, `loop_start` marks the cycle), `trap` (a
+   * trap-certificate row) or `unreachable` (a bare `EF p`: `unreachable_target`
+   * names the atoms the design never reaches). The replay testbench, when
+   * requested, is on `trace.replay.testbench`.
+   */
+  trace?: Trace;
 }
 
 /** Model-level lift diagnostics for verify-auto. */
@@ -1580,11 +1556,11 @@ export const EXPORT_FORMAT_EXTENSIONS: Record<ControllerExportFormat, string> =
     systemverilog: ".sv",
   };
 
-// Synthesis types (matches mununu backend /api/v1/context/synthesize)
+// Synthesis types (matches mununu backend /api/v1/context/synth)
 type SynthesizeRequest =
-  paths["/api/v1/context/synthesize"]["post"]["requestBody"]["content"]["application/json"];
+  paths["/api/v1/context/synth"]["post"]["requestBody"]["content"]["application/json"];
 type BaseSynthesizeResponse =
-  paths["/api/v1/context/synthesize"]["post"]["responses"]["200"]["content"]["application/json"];
+  paths["/api/v1/context/synth"]["post"]["responses"]["200"]["content"]["application/json"];
 
 // Extend generated type with counterstrategy field added to the backend
 export type SynthesizeResponse = BaseSynthesizeResponse & {
@@ -1592,13 +1568,6 @@ export type SynthesizeResponse = BaseSynthesizeResponse & {
 };
 
 export type { SynthesizeRequest };
-
-export interface LassoTrace {
-  prefix: string[];
-  cycle: string[];
-  prefix_labels?: string[];
-  cycle_labels?: string[];
-}
 
 // Synthesis endpoint
 // Uses aiApiClient for extended timeout since synthesis can be slow
@@ -1707,7 +1676,7 @@ export const synthesizeContext = async (
   request: SynthesizeRequest,
 ): Promise<SynthesizeResponse> => {
   const response = await aiApiClient.post<SynthesizeResponse>(
-    "/context/synthesize",
+    "/context/synth",
     request,
   );
   return response.data;
@@ -1717,7 +1686,11 @@ export const synthesizeContext = async (
 // GR(1) Synthesis Endpoint (sound reactive controller synthesis)
 // ============================================================================
 
-/** Request for sound GR(1) controller synthesis (POST /api/v1/synth/gr1). */
+/**
+ * Request for sound GR(1) controller synthesis — `POST /api/v1/context/synth`
+ * with `options.controller_mode: "gr1"` (mununu 0.5 folded `/synth/gr1` into the
+ * synthesis route).
+ */
 export interface Gr1SynthesizeRequest {
   /** The source spec (TLSF today). */
   context: { name: string; content: string };
@@ -1727,40 +1700,27 @@ export interface Gr1SynthesizeRequest {
   module?: string;
 }
 
-/** Response from GR(1) controller synthesis. */
-export interface Gr1SynthesizeResponse {
-  /** Whether the spec is realizable (sound GR(1) verdict). */
-  realizable: boolean;
-  /** The synthesized controller as SystemVerilog, when realizable. */
-  controller_sv?: string;
-  /** Number of game states (env + ctrl + BAD). */
-  game_states: number;
-  /** Number of monitor bits in the game state. */
-  monitor_bits: number;
-  /** Human-readable notes (e.g. unsupported multi-guarantee memory). */
-  notes: string[];
-}
-
 /**
  * Sound GR(1) controller synthesis from an LTL assume/guarantee spec.
  *
- * Unlike {@link synthesizeContext} (signature-based extraction over the combined
- * μ-calculus formula, unsound for conjunctive safety+liveness objectives), this
- * runs the sound GR(1) pipeline (`ControllerMode::Gr1`): the safety guarantees
- * constrain the game arena rather than being intersected as denotational
- * conjuncts. Returns the realizability verdict and, when realizable, the
- * controller SystemVerilog. Uses the extended-timeout client since synthesis
- * can be slow.
+ * Unlike plain {@link synthesizeContext} (signature-based extraction over the
+ * combined μ-calculus formula, unsound for conjunctive safety+liveness
+ * objectives), this runs the sound GR(1) pipeline (`ControllerMode::Gr1`): the
+ * safety guarantees constrain the game arena rather than being intersected as
+ * denotational conjuncts. Answered in the synthesis response shape: `outcome` /
+ * `realizable`, the controller SystemVerilog in `controller_native` (`<module>.sv`)
+ * when realizable, and the game size + notes in `diagnostics.messages`. Uses the
+ * extended-timeout client since synthesis can be slow.
  */
 export const synthesizeGr1 = async (
   request: Gr1SynthesizeRequest,
-): Promise<Gr1SynthesizeResponse> => {
-  const response = await aiApiClient.post<Gr1SynthesizeResponse>(
-    "/synth/gr1",
-    request,
-  );
-  return response.data;
-};
+): Promise<SynthesizeResponse> =>
+  synthesizeContext({
+    context: request.context,
+    adapter: request.adapter,
+    module: request.module,
+    options: { controller_mode: "gr1" },
+  });
 
 // ============================================================================
 // Extraction Validate Endpoint
@@ -2264,8 +2224,8 @@ export interface CodesignVerifyRequest {
 }
 
 export interface CodesignVerifyResponse {
-  /** Whether every initial state satisfies the formula. */
-  satisfied: boolean;
+  /** The verdict envelope: `holds` iff every initial state satisfies the formula. */
+  outcome: FormulaOutcome;
   total_states: number;
   satisfying_states: number;
   initial_states: string[];
@@ -2494,7 +2454,12 @@ export interface VerifyPropertyVerdict {
   formula_source: VerifyPropertyFormulaSource;
   formula: string;
   over: string;
-  satisfied: boolean;
+  /**
+   * `holds` if every initial state of the target satisfies the formula, else
+   * `violated`. Under `assumptions`, read together with `fair_path_exists` (a
+   * `holds` with `fair_path_exists: false` is vacuous).
+   */
+  outcome: FormulaOutcome;
   total_states: number;
   satisfying_states: number;
   initial_states: string[];
@@ -2503,7 +2468,7 @@ export interface VerifyPropertyVerdict {
    * IR-track P3.1 — 3-valued { T, F, ⊥ } summary over the initial states.
    * Same shape as the cegar `CegarVerdictSummary` (reuses the `Trit`
    * renderer). On the bit-blast verify path `unknown_cells` is 0 and this
-   * mirrors `satisfied`; the predicate-cube path (P3.3) populates ⊥.
+   * mirrors `outcome`; the predicate-cube path (P3.3) populates ⊥.
    * Optional for back-compat with pre-P3 reports.
    */
   initial_verdict_summary?: {
@@ -2511,19 +2476,19 @@ export interface VerifyPropertyVerdict {
     false_cells: number;
     unknown_cells: number;
   };
-  /** Present only when `satisfied === false` and a witness was constructible. */
+  /** Present only when `outcome === "violated"` and a witness was constructible. */
   counterexample?: VerifyTraceWitness;
   /**
    * mununu#595 — the `[[assumptions]]` this verdict is CONDITIONAL on (by
    * name). Absent / empty for an unconditional property. Non-empty means
-   * `satisfied` reads "holds under these assumptions", never a bare "holds".
+   * `outcome` reads "holds under these assumptions", never a bare "holds".
    */
   assumptions?: string[];
   /**
    * mununu#595 — the non-vacuity gate for a conditional verdict: a fair
    * path (satisfying every assumption infinitely often) exists from every
    * initial state. `false` = the assumptions are unsatisfiable and the
-   * property is VACUOUS — `satisfied` is then true for no reason. Absent
+   * property is VACUOUS — `outcome` is then `holds` for no reason. Absent
    * for an unconditional property.
    */
   fair_path_exists?: boolean;
@@ -2579,7 +2544,7 @@ export const verifyProject = async (
 };
 
 // ---------------------------------------------------------------------------
-// Memory-check (B2b) — POST /api/v1/verify/memory-check
+// Memory-check (B2b) — POST /api/v1/memory/check
 // ---------------------------------------------------------------------------
 
 /** Per-source posture summary from the memory-check report. */
@@ -2629,7 +2594,7 @@ export type MemoryCheckInfo = {
   source_id: string;
 };
 
-/** Top-level report from `POST /api/v1/verify/memory-check`. */
+/** Top-level report from `POST /api/v1/memory/check`. */
 export interface MemoryCheckReport {
   postures: MemoryPostureSummary[];
   undeclared_sources: string[];
@@ -2637,7 +2602,7 @@ export interface MemoryCheckReport {
   info: MemoryCheckInfo[];
 }
 
-/** Request body for `POST /api/v1/verify/memory-check`. */
+/** Request body for `POST /api/v1/memory/check`. */
 export interface MemoryCheckRequest {
   /** Pre-parsed verify.toml payload. Mutually exclusive with `config_toml`. */
   config?: VerifyConfig;
@@ -2654,7 +2619,7 @@ export const verifyMemoryCheck = async (
   request: MemoryCheckRequest,
 ): Promise<MemoryCheckReport> => {
   const response = await apiClient.post<MemoryCheckReport>(
-    "/verify/memory-check",
+    "/memory/check",
     request,
   );
   return response.data;

@@ -52,12 +52,12 @@ describe("SvCegarRunner", () => {
           had_failure_subgame: false,
           predicates_added: [],
           game_position_evaluations: 4,
-          verdict: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
+          cells: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
         },
       ],
       final_predicates: [{ name: "burst_zero", register: "burst", value: 0 }],
       terminated_with: "converged",
-      verdict: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
+      cells: { true_cells: 2, false_cells: 0, unknown_cells: 0 },
       lazy_lift_pending: false,
       approximant_reuse_enabled: false,
       warnings: [],
@@ -81,17 +81,22 @@ describe("SvCegarRunner", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     });
     const arg = mocked.mock.calls[0]?.[0];
-    expect(arg?.source).toContain("module ctr");
+    expect(arg?.lift.source).toContain("module ctr");
     expect(arg?.formula).toBe("nu X. <true> X");
     expect(arg?.predicates).toEqual([
       { name: "burst_zero", register: "burst", value: 0 },
     ]);
-    expect(arg?.top).toBe("ctr");
+    expect(arg?.lift.top).toBe("ctr");
     // anyconst policy → setundef_anyconst true, anyseq false.
     expect(arg?.setundef_anyconst).toBe(true);
     expect(arg?.setundef_anyseq).toBe(false);
-    // sv2v defaults on for modern SV.
-    expect(arg?.use_sv2v).toBe(true);
+    // The sv2v front end is the default for modern SV (mununu 0.5 `lift.frontend`).
+    expect(arg?.lift.frontend).toBe("sv2v");
+    // No pre-0.5 top-level keys: the backend refuses unknown keys with a 400.
+    expect(arg).not.toHaveProperty("source");
+    expect(arg).not.toHaveProperty("use_sv2v");
+    expect(arg).not.toHaveProperty("controllable_inputs");
+    expect(arg).not.toHaveProperty("config_values");
 
     // The trace renders via the shared CegarTraceView.
     await waitFor(() => {
@@ -107,7 +112,9 @@ describe("SvCegarRunner", () => {
       screen.getByRole("button", { name: /Run CEGAR refinement/i }),
     );
     await waitFor(() => {
-      expect(screen.getByText(/At least one predicate required/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/At least one predicate required/i),
+      ).toBeInTheDocument();
     });
     expect(mocked).not.toHaveBeenCalled();
   });

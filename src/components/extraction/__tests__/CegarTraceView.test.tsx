@@ -3,6 +3,14 @@ import { render, screen } from "@testing-library/react";
 import { CegarTraceView } from "../CegarTraceView";
 import type { Btor2CegarResponse } from "../../../api/endpoints";
 
+/** A predicate as the 1-bit cell `Trace::from_cegar` emits. */
+const bit = (register: string, value: 0 | 1) => ({
+  register,
+  value,
+  hex: `0x${value}`,
+  bits: 1,
+});
+
 const baseResult: Btor2CegarResponse = {
   success: true,
   iterations: [
@@ -12,12 +20,12 @@ const baseResult: Btor2CegarResponse = {
       had_failure_subgame: true,
       predicates_added: [{ name: "p1", register: "boot_fsm_ns", value: 5 }],
       game_position_evaluations: 12,
-      verdict: { true_cells: 6, false_cells: 1, unknown_cells: 1 },
+      cells: { true_cells: 6, false_cells: 1, unknown_cells: 1 },
     },
   ],
   final_predicates: [{ name: "p1", register: "boot_fsm_ns", value: 5 }],
   terminated_with: "converged",
-  verdict: { true_cells: 7, false_cells: 1, unknown_cells: 0 },
+  cells: { true_cells: 7, false_cells: 1, unknown_cells: 0 },
   lazy_lift_pending: false,
   approximant_reuse_enabled: false,
   warnings: [],
@@ -39,7 +47,7 @@ describe("CegarTraceView", () => {
       <CegarTraceView
         result={{
           ...baseResult,
-          verdict: { true_cells: 1, false_cells: 2, unknown_cells: 1 },
+          cells: { true_cells: 1, false_cells: 2, unknown_cells: 1 },
           violating_cells: [
             { cube_index: 2, valuation: { idle: false, err: true } },
           ],
@@ -64,13 +72,15 @@ describe("CegarTraceView", () => {
       <CegarTraceView
         result={{
           ...baseResult,
-          verdict: { true_cells: 1, false_cells: 3, unknown_cells: 0 },
-          counterexample: {
-            ends_in_trap: true,
+          cells: { true_cells: 1, false_cells: 3, unknown_cells: 0 },
+          // mununu 0.5: a `trap` Trace whose steps list each cube cell's
+          // predicates as 1-bit cells.
+          trace: {
+            kind: "trap",
             steps: [
-              { cube_index: 0, valuation: { idle: false, err: false } },
-              { cube_index: 1, valuation: { idle: true, err: false } },
-              { cube_index: 2, valuation: { idle: false, err: true } },
+              { cycle: 0, state: [bit("idle", 0), bit("err", 0)] },
+              { cycle: 1, state: [bit("idle", 1), bit("err", 0)] },
+              { cycle: 2, state: [bit("idle", 0), bit("err", 1)] },
             ],
           },
         }}
@@ -81,9 +91,12 @@ describe("CegarTraceView", () => {
       screen.getByText(/Countertrace \(3 steps, ends in trap\)/i),
     ).toBeInTheDocument();
     // Each step's cell valuation renders, in order.
-    expect(screen.getByText("{idle=false, err=false}")).toBeInTheDocument();
-    expect(screen.getByText("{idle=true, err=false}")).toBeInTheDocument();
-    expect(screen.getByText("{idle=false, err=true}")).toBeInTheDocument();
+    const steps = screen.getAllByTestId("trace-step");
+    expect(steps.map((s) => s.textContent)).toEqual([
+      "→ [0] idle=0, err=0",
+      "→ [1] idle=1, err=0",
+      "→ [2] idle=0, err=1",
+    ]);
   });
 
   it("omits the countertrace when absent", () => {
@@ -97,7 +110,7 @@ describe("CegarTraceView", () => {
         result={{
           ...baseResult,
           terminated_with: "predicate-source-exhausted",
-          verdict: { true_cells: 1, false_cells: 0, unknown_cells: 2 },
+          cells: { true_cells: 1, false_cells: 0, unknown_cells: 2 },
           refinement_candidates: ["boot_fsm_ns", "wait_count"],
         }}
       />,

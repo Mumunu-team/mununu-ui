@@ -31,7 +31,7 @@ describe("CodesignPanel", () => {
   it("posts the register map, firmware, and formula to verifyCodesign", async () => {
     const mocked = vi.mocked(endpoints.verifyCodesign);
     mocked.mockResolvedValue({
-      satisfied: true,
+      outcome: "holds",
       total_states: 16,
       satisfying_states: 16,
       initial_states: ["Idle|Init"],
@@ -62,7 +62,7 @@ describe("CodesignPanel", () => {
   it("passes the automaton override when set", async () => {
     const mocked = vi.mocked(endpoints.verifyCodesign);
     mocked.mockResolvedValue({
-      satisfied: false,
+      outcome: "violated",
       total_states: 4,
       satisfying_states: 0,
       initial_states: ["Init"],
@@ -91,7 +91,7 @@ describe("CodesignPanel", () => {
 
   it("renders a HOLDS verdict with state counts and initial-state details", async () => {
     vi.mocked(endpoints.verifyCodesign).mockResolvedValue({
-      satisfied: true,
+      outcome: "holds",
       total_states: 16,
       satisfying_states: 16,
       initial_states: ["Idle|Init"],
@@ -118,7 +118,7 @@ describe("CodesignPanel", () => {
 
   it("renders a VIOLATED verdict when not all initial states satisfy", async () => {
     vi.mocked(endpoints.verifyCodesign).mockResolvedValue({
-      satisfied: false,
+      outcome: "violated",
       total_states: 16,
       satisfying_states: 8,
       initial_states: ["Idle|Init"],
@@ -156,7 +156,7 @@ describe("CodesignPanel", () => {
 
   it("exposes the composed CTXDSL behind a collapsible details element", async () => {
     vi.mocked(endpoints.verifyCodesign).mockResolvedValue({
-      satisfied: true,
+      outcome: "holds",
       total_states: 16,
       satisfying_states: 16,
       initial_states: ["Idle|Init"],
@@ -177,7 +177,9 @@ describe("CodesignPanel", () => {
     await waitFor(() => {
       // The <summary> shows line-count metadata so we can confirm
       // both that the body is exposed and that we got the response.
-      expect(screen.getByText(/Composed CTXDSL \(\d+ lines\)/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Composed CTXDSL \(\d+ lines\)/i),
+      ).toBeInTheDocument();
     });
   });
 });
