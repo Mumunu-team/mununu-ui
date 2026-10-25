@@ -15,13 +15,13 @@ const mockResponse: Btor2CheckFsmResponse = {
     {
       register: "state_q",
       legal_encodings: [3, 14, 16, 29, 36, 41, 55, 58],
-      verdict: "holds",
+      outcome: "holds",
       illegal_encoding_reachable: false,
     },
     {
       register: "sub_sm",
       legal_encodings: [0, 1, 2],
-      verdict: "violated",
+      outcome: "violated",
       illegal_encoding_reachable: true,
     },
   ],
@@ -57,7 +57,7 @@ describe("runBtor2CheckFsm (POST /btor2/check-fsm)", () => {
     // The finding is the register with a reachable illegal encoding.
     const bug = out.registers.find((r) => r.illegal_encoding_reachable);
     expect(bug?.register).toBe("sub_sm");
-    expect(bug?.verdict).toBe("violated");
+    expect(bug?.outcome).toBe("violated");
   });
 });
 
@@ -66,7 +66,7 @@ describe("runSvCheckFsm (POST /sv/check-fsm)", () => {
     vi.clearAllMocks();
   });
 
-  it("posts the SV lift fields and returns the shared check-fsm response", async () => {
+  it("nests the design under `lift` and returns the shared check-fsm response", async () => {
     const postSpy = vi.spyOn(aiApiClient, "post").mockResolvedValue({
       data: mockResponse,
       status: 200,
@@ -76,8 +76,7 @@ describe("runSvCheckFsm (POST /sv/check-fsm)", () => {
     });
 
     const req: SvCheckFsmRequest = {
-      source: "module m; endmodule",
-      use_sv2v: true,
+      lift: { source: "module m; endmodule", frontend: "sv2v" },
       max_width: 8,
     };
     const out = await runSvCheckFsm(req);
@@ -85,7 +84,12 @@ describe("runSvCheckFsm (POST /sv/check-fsm)", () => {
     expect(postSpy).toHaveBeenCalledTimes(1);
     const [endpoint, payload] = postSpy.mock.calls[0];
     expect(endpoint).toBe("/sv/check-fsm");
-    expect((payload as SvCheckFsmRequest).use_sv2v).toBe(true);
+    // mununu 0.5: the lift inputs travel as one `lift` object; the old
+    // top-level keys (source, use_sv2v, …) are refused with a 400.
+    expect(payload).toEqual({
+      lift: { source: "module m; endmodule", frontend: "sv2v" },
+      max_width: 8,
+    });
     expect(out.illegal_encodings_found).toBe(1);
   });
 });

@@ -19,6 +19,7 @@ describe("synthesizeContext — controller_mode passthrough", () => {
   const mockResponse = {
     data: {
       success: true,
+      outcome: "holds",
       realizable: true,
       controller: { name: "ctrl.ctxdsl", content: "" },
       diagnostics: {
@@ -40,7 +41,7 @@ describe("synthesizeContext — controller_mode passthrough", () => {
     "product-game",
     "parity-game",
   ] as const)(
-    "passes controller_mode='%s' through to /context/synthesize",
+    "passes controller_mode='%s' through to /context/synth",
     async (mode) => {
       const postSpy = vi
         .spyOn(aiApiClient, "post")
@@ -58,7 +59,7 @@ describe("synthesizeContext — controller_mode passthrough", () => {
 
       expect(postSpy).toHaveBeenCalledTimes(1);
       const [endpoint, payload] = postSpy.mock.calls[0];
-      expect(endpoint).toBe("/context/synthesize");
+      expect(endpoint).toBe("/context/synth");
       expect(
         (payload as { options?: { controller_mode?: string } }).options
           ?.controller_mode,

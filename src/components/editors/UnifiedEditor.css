@@ -227,6 +227,17 @@
   color: #fca5a5;
 }
 
+/* `outcome: "unknown"` — every formula holds, the sanity checks found something. */
+.unified-editor__verify-badge--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+:root.dark .unified-editor__verify-badge--warn {
+  background: #451a03;
+  color: #fcd34d;
+}
+
 .unified-editor__verify-table {
   width: 100%;
   font-size: 0.8125rem;
@@ -309,7 +320,7 @@
   }
 }
 
-/* Model sanity (`/context/verify` with `sanity: true`) */
+/* Model sanity (`/context/eval` with `sanity: true`) */
 .unified-editor__sanity {
   margin: 0.5rem 0 0.75rem;
   font-size: 0.85rem;

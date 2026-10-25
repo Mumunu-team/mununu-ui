@@ -810,7 +810,7 @@ async function executeStep(
       });
       state.setVerifyReport(report);
       const satisfied = report.property_verdicts.filter(
-        (v) => v.satisfied,
+        (v) => v.outcome === "holds",
       ).length;
       const total = report.property_verdicts.length;
       return `Verified ${report.project}: ${satisfied} / ${total} properties satisfied (${report.sources.length} source(s))`;

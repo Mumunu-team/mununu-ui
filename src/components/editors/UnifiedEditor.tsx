@@ -24,6 +24,7 @@ import { MultiGraphView } from "../visualization/MultiGraphView";
 import { CounterstrategyView } from "../visualization/CounterstrategyView";
 import { TraceViewer } from "../visualization/TraceViewer";
 import { LassoTraceViewer } from "../visualization/LassoTraceViewer";
+import { traceStateNames } from "../../utils/trace";
 import { ExtractionPanel } from "../extraction/ExtractionPanel";
 import { ContractPanel } from "../contract/ContractPanel";
 import { CodesignPanel } from "../codesign/CodesignPanel";
@@ -247,8 +248,7 @@ export const UnifiedEditor = () => {
             controller_mode: controllerMode,
           } as Record<string, unknown>,
         });
-        const native = (response as Record<string, unknown>)
-          .controller_native as { name: string; content: string } | undefined;
+        const native = response.controller_native;
         if (native) {
           downloadAsFile(native.content, native.name);
         } else if (response.controller) {
@@ -966,11 +966,22 @@ export const UnifiedEditor = () => {
               {verification.state.result && (
                 <div className="unified-editor__results">
                   <div
-                    className={`unified-editor__verify-badge ${verification.state.result.all_satisfied ? "unified-editor__verify-badge--pass" : "unified-editor__verify-badge--fail"}`}
+                    className={`unified-editor__verify-badge ${
+                      {
+                        holds: "unified-editor__verify-badge--pass",
+                        unknown: "unified-editor__verify-badge--warn",
+                        violated: "unified-editor__verify-badge--fail",
+                      }[verification.state.result.outcome]
+                    }`}
                   >
-                    {verification.state.result.all_satisfied
-                      ? "All Formulas Satisfied"
-                      : "Some Formulas Not Satisfied"}
+                    {
+                      {
+                        holds: "All Formulas Satisfied",
+                        unknown:
+                          "All Formulas Satisfied — Model Sanity Findings Below",
+                        violated: "Some Formulas Not Satisfied",
+                      }[verification.state.result.outcome]
+                    }
                   </div>
                   <SanityPanel reports={verification.state.result.sanity} />
                   <table className="unified-editor__verify-table">
@@ -1012,7 +1023,7 @@ export const UnifiedEditor = () => {
                           <React.Fragment key={i}>
                             <tr
                               className={
-                                r.satisfied
+                                r.outcome === "holds"
                                   ? ""
                                   : "unified-editor__verify-row--fail"
                               }
@@ -1020,7 +1031,9 @@ export const UnifiedEditor = () => {
                               <td>{r.formula_name}</td>
                               <td>{r.automaton}</td>
                               <td>
-                                {r.satisfied ? "Satisfied" : "Not Satisfied"}
+                                {r.outcome === "holds"
+                                  ? "Satisfied"
+                                  : "Not Satisfied"}
                               </td>
                               <td>
                                 {r.satisfying_states}/{r.total_states}
@@ -1030,7 +1043,7 @@ export const UnifiedEditor = () => {
                                 {r.initial_states.length}
                               </td>
                               <td>
-                                {!r.satisfied && (
+                                {r.outcome !== "holds" && (
                                   <div
                                     style={{
                                       display: "flex",
@@ -1148,7 +1161,9 @@ export const UnifiedEditor = () => {
                                         />
                                       ) : hasDeadlockTraces ? (
                                         <TraceViewer
-                                          traces={ctResult.deadlock_traces}
+                                          traces={ctResult.deadlock_traces.map(
+                                            traceStateNames,
+                                          )}
                                           title="Deadlock Traces"
                                           selectedTraceIndex={
                                             traceState.traceIndex

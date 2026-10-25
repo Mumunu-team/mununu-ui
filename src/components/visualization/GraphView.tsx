@@ -9,7 +9,7 @@ import "./GraphView.css";
 cytoscape.use(dagre);
 
 type GraphData =
-  paths["/api/v1/context/graphs"]["post"]["responses"]["200"]["content"]["application/json"]["graphs"][0];
+  paths["/api/v1/context/graph"]["post"]["responses"]["200"]["content"]["application/json"]["graphs"][0];
 
 interface GraphViewProps {
   graph: GraphData;

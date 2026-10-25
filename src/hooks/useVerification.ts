@@ -5,7 +5,7 @@ import {
   type ContextVerifyResponse,
   type FormulaVerificationResult,
   type CounterstrategyResult,
-  type LassoTrace,
+  type Trace,
 } from "../api/endpoints";
 import { useToast } from "./useToast";
 import { useErrorHandler } from "./useErrorHandler";
@@ -22,10 +22,12 @@ export interface VerificationState {
 /** Diagnostics produced by synthesis for a single formula/automaton pair. */
 export interface CountertracesResult {
   realizable: boolean;
-  counterexample_trace?: string[];
-  counterstrategy_traces: string[][];
-  deadlock_traces: string[][];
-  lasso_traces: LassoTrace[];
+  /** The minimal counterexample path (a `finite` trace over state names). */
+  counterexample?: Trace;
+  counterstrategy_traces: Trace[];
+  deadlock_traces: Trace[];
+  /** `lasso` traces (`loop_start` marks the cycle). */
+  lasso_traces: Trace[];
   violating_initials: string[];
   messages: string[];
   /** Counterstrategy graph (also returned by synthesis for unrealizable). */
@@ -96,10 +98,16 @@ export const useVerification = (initialState?: Partial<VerificationState>) => {
           error: null,
         }));
 
-        if (response.all_satisfied) {
+        if (response.outcome === "holds") {
           toast.showSuccess("All formulas satisfied");
+        } else if (response.outcome === "unknown") {
+          toast.showInfo(
+            "All formulas satisfied — the model sanity checks found something to review",
+          );
         } else {
-          const failed = response.results.filter((r) => !r.satisfied).length;
+          const failed = response.results.filter(
+            (r) => r.outcome !== "holds",
+          ).length;
           toast.showInfo(
             `Verification completed — ${failed} formula(s) not satisfied`,
           );
@@ -191,10 +199,10 @@ export const useVerification = (initialState?: Partial<VerificationState>) => {
           const next = new Map(prev);
           next.set(key, {
             realizable: response.realizable,
-            counterexample_trace: diag.counterexample_trace ?? undefined,
+            counterexample: diag.counterexample ?? undefined,
             counterstrategy_traces: diag.counterstrategy_traces ?? [],
             deadlock_traces: diag.deadlock_traces ?? [],
-            lasso_traces: (diag as Record<string, unknown>).lasso_traces as LassoTrace[] ?? [],
+            lasso_traces: diag.lasso_traces ?? [],
             violating_initials: diag.violating_initials ?? [],
             messages: diag.messages ?? [],
             counterstrategy: response.counterstrategy,

@@ -140,7 +140,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/context/graphs": {
+  "/api/v1/context/graph": {
     parameters: {
       query?: never;
       header?: never;
@@ -174,7 +174,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/context/synthesize": {
+  "/api/v1/context/synth": {
     parameters: {
       query?: never;
       header?: never;
@@ -836,16 +836,25 @@ export interface components {
     };
     /** @description Request for controller synthesis */
     ContextSynthesizeRequest: {
-      automaton: string;
+      /** @description Not used by `controller_mode: "gr1"`, which reads an LTL assume/guarantee spec. */
+      automaton?: string;
       context: components["schemas"]["FileContent"];
-      formula: string;
+      /** @description With `controller_mode: "gr1"`: the adapter reading `context` (default `"tlsf"`). */
+      adapter?: string | null;
+      /** @description With `controller_mode: "gr1"`: the emitted SystemVerilog module name (default `gr1_controller`). */
+      module?: string | null;
+      formula?: string | null;
       options?: components["schemas"]["SynthesisOptions"];
       sidecars?: components["schemas"]["SidecarFile"][];
     };
     /** @description Response from controller synthesis */
     ContextSynthesizeResponse: {
       controller?: null | components["schemas"]["FileContent"];
+      /** @description Controller in the requested native format (xstate, systemverilog; the GR(1) SystemVerilog). */
+      controller_native?: components["schemas"]["FileContent"];
       diagnostics: components["schemas"]["SynthesisDiagnostics"];
+      /** @description The verdict envelope: `holds` iff a controller exists (`realizable`), else `violated`. */
+      outcome: string;
       realizable: boolean;
       success: boolean;
     };
@@ -900,6 +909,66 @@ export interface components {
       element_type: string;
       justification: string;
       source_reference?: string | null;
+    };
+    /** @description One register's concrete value in a counterexample state. */
+    CexCellView: {
+      register: string;
+      /** @description The value when it fits 64 bits, else `null` (read `hex`). */
+      value: number | null;
+      /** @description `0x` + the value zero-padded to the cell's width. */
+      hex: string;
+      /** @description The cell's width in bits. */
+      bits: number;
+    };
+    /**
+     * @description What a trace shows.
+     * @enum {string}
+     */
+    TraceKind: "finite" | "lasso" | "trap" | "unreachable" | "attack";
+    /** @description One fault injection on a trace step. */
+    TraceFault: {
+      site: string;
+      value: number | null;
+      hex: string;
+    };
+    /** @description One step of a trace: the state at `cycle` and what drives the step out of it. */
+    TraceStep: {
+      cycle: number;
+      /** @description Register cells (RTL); absent for a CTXDSL step. */
+      state?: components["schemas"]["CexCellView"][];
+      /** @description The CTXDSL state's name. */
+      state_name?: string;
+      /** @description The input assignment of this cycle (RTL). */
+      inputs?: components["schemas"]["CexCellView"][];
+      /** @description Faults injected in this cycle. */
+      faults?: components["schemas"]["TraceFault"][];
+      /** @description The labels of the transition out of this step (CTXDSL). */
+      labels?: string[];
+    };
+    /** @description A generated counterexample-replay (Verilator) testbench. */
+    TestbenchView: {
+      tb_cpp: string;
+      makefile: string;
+      checks: number;
+      skipped: string[];
+    };
+    /** @description Replay artefacts attached to a trace. */
+    TraceReplay: {
+      testbench?: components["schemas"]["TestbenchView"];
+    };
+    /**
+     * @description The one counterexample shape of mununu 0.5, shared by every verb that
+     *     returns a path: RTL rows fill `state` / `inputs` / `faults`, CTXDSL rows fill
+     *     `state_name` / `labels`.
+     */
+    Trace: {
+      kind: components["schemas"]["TraceKind"];
+      steps: components["schemas"]["TraceStep"][];
+      /** @description For a `lasso`: the index into `steps` the last step loops back to. */
+      loop_start?: number;
+      /** @description For `unreachable`: the target atoms no path reaches. */
+      unreachable_target?: string[];
+      replay?: components["schemas"]["TraceReplay"];
     };
     /** @description Diagnostics options */
     DiagnosticsOptions: {
@@ -1375,9 +1444,12 @@ export interface components {
     };
     /** @description Synthesis diagnostics (matches ControllerDiagnostics structure) */
     SynthesisDiagnostics: {
-      counterexample_trace?: string[] | null;
-      counterstrategy_traces?: string[][];
-      deadlock_traces?: string[][];
+      /** @description The minimal counterexample path (a finite trace over state names). */
+      counterexample?: components["schemas"]["Trace"] | null;
+      counterstrategy_traces?: components["schemas"]["Trace"][];
+      deadlock_traces?: components["schemas"]["Trace"][];
+      /** @description Lasso traces for liveness counterexamples (`lasso` traces with labels). */
+      lasso_traces?: components["schemas"]["Trace"][];
       messages?: string[];
       minimization?: null | components["schemas"]["MinimizationReport"];
       proof_obligations?: components["schemas"]["ProofObligation"][];
@@ -1402,6 +1474,8 @@ export interface components {
        * - `signature-memory`: like `functional`, with iteration-rank annotations on state names.
        * - `product-game`: memory-aware Mealy controller via mu-obligation rotation (alternation 2).
        * - `parity-game`: full parity-game synthesis via Zielonka (arbitrary alternation).
+       * - `gr1`: sound GR(1) synthesis from an LTL assume/guarantee spec (`context` is
+       *   the spec, read by `adapter`; no `automaton`).
        */
       controller_mode?:
         | "projection"
@@ -1409,7 +1483,8 @@ export interface components {
         | "permissive"
         | "signature-memory"
         | "product-game"
-        | "parity-game";
+        | "parity-game"
+        | "gr1";
       /** Output format for the controller. */
       output_format?: string;
     };
