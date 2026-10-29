@@ -1404,7 +1404,15 @@ export interface PropertyVerdictView {
   name: string;
   /** "assert" | "assume" | "cover". */
   kind: string;
+  /**
+   * The property as its author wrote it when that was not mu-calculus (an `@mununu_guarantee ltl …`
+   * row shows its LTL), otherwise the mu-calculus the engine decided (mununu 0.5.7).
+   */
   formula: string;
+  /** "mu-calculus" | "ltl" — how to read `formula` (absent on a server before 0.5.7). */
+  formula_language?: string;
+  /** The mu-calculus the engine decided, present only when `formula` is written in another language. */
+  translated?: string;
   /** "holds" | "violated" | "unknown" | "skipped". */
   outcome: string;
   /** Cell-count detail (violated/unknown) or the skip reason. */

@@ -514,7 +514,15 @@ export const SvVerifyAutoRunner = () => {
                     marginLeft: "1rem",
                   }}
                 >
-                  <code>{p.formula}</code>
+                  <code>
+                    {p.formula_language === "ltl" ? "ltl " : ""}
+                    {p.formula}
+                  </code>
+                  {p.translated && (
+                    <div>
+                      translated: <code>{p.translated}</code>
+                    </div>
+                  )}
                   {p.outcome === "skipped" && p.detail && (
                     <div>skipped — {p.detail}</div>
                   )}
