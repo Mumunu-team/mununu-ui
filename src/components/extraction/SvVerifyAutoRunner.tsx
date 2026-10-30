@@ -22,6 +22,7 @@ import {
 import { useExtractionStore } from "../../store/extractionStore";
 import { TraceView } from "../visualization/TraceView";
 import { SvFrontendSelect } from "./SvFrontendSelect";
+import { compactLines, formatSourceLoc } from "../../utils/trace";
 
 const outcomeColor = (outcome: string): string => {
   switch (outcome) {
@@ -80,6 +81,8 @@ export const SvVerifyAutoRunner = () => {
   // R-F5.5d — predicate-cube engine selector ("explicit" | "symbolic").
   const [engine, setEngine] = useState("explicit");
   const [gateReset, setGateReset] = useState(true);
+  // Replay each counterexample under Verilator on the server (emit_testbench + replay).
+  const [replay, setReplay] = useState(false);
   const [autoStubFlops, setAutoStubFlops] = useState(true);
   // H.J.b — config pins (`pins`): comma/newline-separated `signal=value`
   // entries (e.g. `cfg_detect_timer_i=7`). Pins wide config inputs to constants
@@ -150,6 +153,7 @@ export const SvVerifyAutoRunner = () => {
           .map((s) => s.trim())
           .filter((s) => s.length > 0),
         engine,
+        ...(replay ? { emit_testbench: true, replay: true } : {}),
       });
       setResult(response);
     } catch (e) {
@@ -278,6 +282,23 @@ export const SvVerifyAutoRunner = () => {
               onChange={(e) => setGateReset(e.target.checked)}
             />
             Gate reset (drop <code>disable iff</code>, pin reset inactive)
+          </label>
+          <label
+            style={{
+              fontSize: "0.9rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <input
+              type="checkbox"
+              aria-label="Replay counterexamples under Verilator"
+              checked={replay}
+              onChange={(e) => setReplay(e.target.checked)}
+            />
+            Replay each counterexample under Verilator (needs Verilator on the
+            server)
           </label>
           <label
             style={{
@@ -427,6 +448,16 @@ export const SvVerifyAutoRunner = () => {
                   {result.diagnostics.auto_provided_stubs.join(", ")}
                 </>
               )}
+              {result.diagnostics.source_map &&
+                result.diagnostics.source_map.status !== "available" && (
+                  <span data-testid="source-map-status">
+                    {" · "}
+                    source map: {result.diagnostics.source_map.status}
+                    {result.diagnostics.source_map.reason
+                      ? ` — ${result.diagnostics.source_map.reason}`
+                      : ""}
+                  </span>
+                )}
             </p>
           )}
           {result.notes && result.notes.length > 0 && (
@@ -514,6 +545,12 @@ export const SvVerifyAutoRunner = () => {
                     marginLeft: "1rem",
                   }}
                 >
+                  {p.label && p.label !== p.name && <div>label: {p.label}</div>}
+                  {p.source && (
+                    <div data-testid="property-source">
+                      source: <code>{formatSourceLoc(p.source)}</code>
+                    </div>
+                  )}
                   <code>
                     {p.formula_language === "ltl" ? "ltl " : ""}
                     {p.formula}
@@ -522,6 +559,14 @@ export const SvVerifyAutoRunner = () => {
                     <div>
                       translated: <code>{p.translated}</code>
                     </div>
+                  )}
+                  {p.involves && p.involves.length > 0 && (
+                    <details data-testid="property-involves">
+                      <summary>
+                        involves: {p.involves.length} line(s) of the cone
+                      </summary>
+                      <code>{compactLines(p.involves)}</code>
+                    </details>
                   )}
                   {p.outcome === "skipped" && p.detail && (
                     <div>skipped — {p.detail}</div>
