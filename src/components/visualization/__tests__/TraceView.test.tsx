@@ -3,7 +3,13 @@ import { render, screen } from "@testing-library/react";
 import { TraceView } from "../TraceView";
 import { LassoTraceViewer } from "../LassoTraceViewer";
 import type { Trace } from "../../../api/endpoints";
-import { formatTracePath, traceStateNames } from "../../../utils/trace";
+import {
+  compactLines,
+  formatCellSource,
+  formatReplayResult,
+  formatTracePath,
+  traceStateNames,
+} from "../../../utils/trace";
 
 // The serialized form of a CTXDSL `LassoTrace {prefix: [Idle], cycle: [Busy,
 // Wait], prefix_labels: [start], cycle_labels: [poll, retry]}` in mununu 0.5:
@@ -97,5 +103,121 @@ describe("LassoTraceViewer", () => {
     expect(screen.getByText("Lasso Traces")).toBeInTheDocument();
     expect(screen.getByText("Trace 1:")).toBeInTheDocument();
     expect(screen.getByText("Trace 2:")).toBeInTheDocument();
+  });
+});
+
+// The tutorial pump-pair draft's `alternates` row on mununu 0.5.8 (`--replay`, mununu-sva): the
+// legend and the replay verdict the CLI printed, field for field.
+const pumpPair: Trace = {
+  kind: "finite",
+  steps: [
+    {
+      cycle: 0,
+      state: [{ register: "state_q", value: 0, hex: "0x0", bits: 2 }],
+      inputs: [{ register: "flow", value: 0, hex: "0x0", bits: 1 }],
+    },
+  ],
+  sources: [
+    {
+      cell: "state_q",
+      kind: "register",
+      declared: { file: "pump_pair.sv", line: 33 },
+      assigned: [{ file: "pump_pair.sv", line: 52 }],
+    },
+    {
+      cell: "flow",
+      kind: "input",
+      declared: { file: "pump_pair.sv", line: 26 },
+    },
+    { cell: "u_x.q", kind: "register", assigned: [{ file: "x.sv", line: 9 }] },
+  ],
+  replay: {
+    result: {
+      outcome: "match",
+      checks: 16,
+      mismatches: 0,
+      assertions: [],
+      vcd_bytes: 2037,
+      verilator: "5.051",
+      log: "",
+    },
+  },
+};
+
+describe("source map and replay readers", () => {
+  it("prints a legend line as the CLI does, leaving out a half the map lacks", () => {
+    expect(pumpPair.sources?.map(formatCellSource)).toEqual([
+      "state_q ← pump_pair.sv:33 (register, assigned at pump_pair.sv:52)",
+      "flow ← pump_pair.sv:26 (input)",
+      "u_x.q (register, assigned at x.sv:9)",
+    ]);
+  });
+
+  it("collapses source lines into runs per file, as the CLI's involves: line", () => {
+    const at = (file: string, line: number) => ({ file, line });
+    expect(
+      compactLines([
+        at("pump_pair_sva.sv", 16),
+        at("pump_pair.sv", 52),
+        at("pump_pair.sv", 24),
+        at("pump_pair.sv", 25),
+        at("pump_pair.sv", 31),
+        at("pump_pair.sv", 25),
+        at("pump_pair.sv", 53),
+        at("pump_pair.sv", 54),
+      ]),
+    ).toBe("pump_pair.sv:24-25, 31, 52-54; pump_pair_sva.sv:16");
+    expect(compactLines([])).toBe("");
+  });
+
+  it("prints the replay verdict as the CLI does, and why it could not run", () => {
+    expect(formatReplayResult(pumpPair.replay!.result!)).toBe(
+      "match — 0 of 16 checks disagree; verilator 5.051",
+    );
+    expect(
+      formatReplayResult({
+        outcome: "mismatch",
+        checks: 16,
+        mismatches: 1,
+        first_mismatch: {
+          cycle: 3,
+          register: "state_q",
+          got: "2",
+          expected: "1",
+        },
+        assertions: [],
+        log: "",
+      }),
+    ).toBe(
+      "mismatch — 1 of 16 checks disagree; first at cycle 3: state_q = 2, trace says 1; verilator ?",
+    );
+    expect(
+      formatReplayResult({
+        outcome: "unavailable",
+        reason: "verilator not found",
+        checks: 16,
+        mismatches: 0,
+        assertions: [],
+        log: "",
+      }),
+    ).toBe("unavailable — verilator not found");
+  });
+
+  it("renders the legend and the replay verdict under an RTL path", () => {
+    render(<TraceView trace={pumpPair} />);
+    expect(screen.getByTestId("trace-sources").textContent).toContain(
+      "state_q ← pump_pair.sv:33 (register, assigned at pump_pair.sv:52)",
+    );
+    const replay = screen.getByTestId("trace-replay").textContent ?? "";
+    expect(replay).toContain(
+      "replay: match — 0 of 16 checks disagree; verilator 5.051",
+    );
+    expect(replay).toContain("replay vcd: 2037 bytes");
+  });
+
+  it("renders neither block when the trace carries no legend and no replay", () => {
+    render(<TraceView trace={{ kind: "finite", steps: pumpPair.steps }} />);
+    expect(screen.queryByTestId("trace-sources")).toBeNull();
+    expect(screen.queryByTestId("trace-replay")).toBeNull();
   });
 });

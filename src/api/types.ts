@@ -944,6 +944,48 @@ export interface components {
       faults?: components["schemas"]["TraceFault"][];
       /** @description The labels of the transition out of this step (CTXDSL). */
       labels?: string[];
+      /** @description Cells the verifier added to the model (the property monitor's latches, `$past` shadows, fault-rewrite state), kept apart from `state`. */
+      monitor?: components["schemas"]["CexCellView"][];
+    };
+    /** @description A place in the RTL: the file's basename and a line (mununu 0.5.7). */
+    SourceLoc: {
+      file: string;
+      line: number;
+    };
+    /** @description Where a trace cell lives in the RTL (mununu 0.5.7). */
+    CellSource: {
+      /** @description The cell as the trace names it. */
+      cell: string;
+      /** @description `"register"` | `"input"` | `"output"`. */
+      kind: string;
+      /** @description The net's declaration. */
+      declared?: components["schemas"]["SourceLoc"];
+      /** @description The `always` block(s) driving a register; absent for an input. */
+      assigned?: components["schemas"]["SourceLoc"][];
+    };
+    /** @description The first cycle where the simulator and the trace disagree. */
+    ReplayMismatchView: {
+      cycle: number;
+      register: string;
+      got: string;
+      expected: string;
+    };
+    /** @description The simulator's verdict on a replayed trace (`replay: true`, mununu 0.5.7). */
+    ReplayResultView: {
+      /** @description `"match"` | `"mismatch"` | `"unavailable"`. */
+      outcome: string;
+      /** @description Why the bench could not run (`unavailable`). */
+      reason?: string;
+      checks: number;
+      mismatches: number;
+      first_mismatch?: components["schemas"]["ReplayMismatchView"];
+      /** @description Assertions the bound SVA reported under Verilator. */
+      assertions: string[];
+      /** @description Size of `replay.vcd`; absent when it was not written. */
+      vcd_bytes?: number;
+      /** @description The Verilator version the bench ran under. */
+      verilator?: string;
+      log: string;
     };
     /** @description A generated counterexample-replay (Verilator) testbench. */
     TestbenchView: {
@@ -955,6 +997,12 @@ export interface components {
     /** @description Replay artefacts attached to a trace. */
     TraceReplay: {
       testbench?: components["schemas"]["TestbenchView"];
+      /** @description `replay.gtkw`: a GTKWave save file listing the clock, the trace's inputs and its registers (mununu 0.5.7). */
+      gtkw?: string;
+      /** @description Where the CLI wrote the bench (CLI only). */
+      dir?: string;
+      /** @description The simulator's verdict, under `replay: true` (mununu 0.5.7). */
+      result?: components["schemas"]["ReplayResultView"];
     };
     /**
      * @description The one counterexample shape of mununu 0.5, shared by every verb that
@@ -969,6 +1017,8 @@ export interface components {
       /** @description For `unreachable`: the target atoms no path reaches. */
       unreachable_target?: string[];
       replay?: components["schemas"]["TraceReplay"];
+      /** @description The legend: where each cell the trace shows lives in the RTL (mununu 0.5.7). */
+      sources?: components["schemas"]["CellSource"][];
     };
     /** @description Diagnostics options */
     DiagnosticsOptions: {
