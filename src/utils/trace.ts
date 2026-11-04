@@ -5,7 +5,13 @@
  * register cells in `steps[].state`).
  */
 
-import type { CexCellView, Trace } from "../api/endpoints";
+import type {
+  CellSource,
+  CexCellView,
+  ReplayResultView,
+  SourceLoc,
+  Trace,
+} from "../api/endpoints";
 
 /** The state names along a CTXDSL trace, in order (RTL steps contribute nothing). */
 export const traceStateNames = (trace: Trace): string[] =>
@@ -49,3 +55,65 @@ export const cellValue = (c: CexCellView): string =>
 /** Register cells as `reg=value, …`. */
 export const formatCells = (cells: CexCellView[] | undefined): string =>
   (cells ?? []).map((c) => `${c.register}=${cellValue(c)}`).join(", ");
+
+/** A place in the RTL as `file:line`. */
+export const formatSourceLoc = (loc: SourceLoc): string =>
+  `${loc.file}:${loc.line}`;
+
+/**
+ * Source lines as one short line, as the CLI prints `involves:`: grouped by file in sorted order,
+ * each run of consecutive lines as a range — `pump_pair.sv:24-25, 31; pump_pair_sva.sv:16`.
+ */
+export const compactLines = (locs: SourceLoc[] | undefined): string => {
+  const sorted = [...(locs ?? [])].sort((a, b) =>
+    a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1,
+  );
+  const files: { file: string; runs: string[] }[] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    const { file, line: start } = sorted[i];
+    let end = start;
+    while (
+      i + 1 < sorted.length &&
+      sorted[i + 1].file === file &&
+      sorted[i + 1].line <= end + 1
+    ) {
+      i += 1;
+      end = Math.max(end, sorted[i].line);
+    }
+    const run = end > start ? `${start}-${end}` : `${start}`;
+    const last = files[files.length - 1];
+    if (last && last.file === file) last.runs.push(run);
+    else files.push({ file, runs: [run] });
+    i += 1;
+  }
+  return files.map((f) => `${f.file}:${f.runs.join(", ")}`).join("; ");
+};
+
+/**
+ * One legend line, as the CLI prints it under `cells:` — `state_q ← pump_pair.sv:33 (register,
+ * assigned at pump_pair.sv:52)`; a half the map lacks is left out, never shown as a placeholder.
+ */
+export const formatCellSource = (s: CellSource): string => {
+  const declared = s.declared ? ` ← ${formatSourceLoc(s.declared)}` : "";
+  const assigned =
+    s.assigned && s.assigned.length > 0
+      ? `, assigned at ${s.assigned.map(formatSourceLoc).join(", ")}`
+      : "";
+  return `${s.cell}${declared} (${s.kind}${assigned})`;
+};
+
+/**
+ * The simulator's verdict line, as the CLI prints `replay:` —
+ * `match — 0 of 16 checks disagree; verilator 5.051`, the first mismatch named when there is one,
+ * `unavailable — <reason>` when the bench could not run.
+ */
+export const formatReplayResult = (r: ReplayResultView): string => {
+  if (r.outcome === "unavailable") {
+    return `unavailable — ${r.reason ?? "no reason recorded"}`;
+  }
+  const first = r.first_mismatch
+    ? `; first at cycle ${r.first_mismatch.cycle}: ${r.first_mismatch.register} = ${r.first_mismatch.got}, trace says ${r.first_mismatch.expected}`
+    : "";
+  return `${r.outcome} — ${r.mismatches} of ${r.checks} checks disagree${first}; verilator ${r.verilator ?? "?"}`;
+};

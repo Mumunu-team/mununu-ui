@@ -19,6 +19,12 @@ export type TraceStep = components["schemas"]["TraceStep"];
 export type TestbenchView = components["schemas"]["TestbenchView"];
 /** The counterexample path every 0.5 verb returns. */
 export type Trace = components["schemas"]["Trace"];
+/** A place in the RTL: a file's basename and a line. */
+export type SourceLoc = components["schemas"]["SourceLoc"];
+/** Where a trace cell lives in the RTL (the `cells:` legend). */
+export type CellSource = components["schemas"]["CellSource"];
+/** The simulator's verdict on a replayed trace (`trace.replay.result`). */
+export type ReplayResultView = components["schemas"]["ReplayResultView"];
 
 /**
  * The verdict envelope of a CTXDSL formula (`/context/eval`, `/codesign/verify`,
@@ -1397,11 +1403,29 @@ export interface SvVerifyAutoRequest {
   emit_testbench?: boolean;
   /** The clock port the testbench toggles (default: the first conventional name the source declares). */
   tb_clock?: string;
+  /**
+   * Build and run each emitted testbench under Verilator on the server and attach its verdict as
+   * `trace.replay.result` (requires `emit_testbench`; mununu 0.5.7).
+   */
+  replay?: boolean;
 }
 
 /** One property's auto-verification verdict (mirrors the backend view). */
 export interface PropertyVerdictView {
   name: string;
+  /** The assertion's SV label or the annotation's name, when it has one. */
+  label?: string;
+  /**
+   * Where the property is written in the RTL: an SVA row's assertion statement, an annotation
+   * row's comment (absent for a template row, when unknown, and from mununu 0.5.8 and earlier).
+   */
+  source?: SourceLoc;
+  /**
+   * The RTL lines of the property's cone of influence: declaration, `always` block(s) and every
+   * writing statement of each register, input and named wire it depends on (absent from mununu
+   * 0.5.8 and earlier).
+   */
+  involves?: SourceLoc[];
   /** "assert" | "assume" | "cover". */
   kind: string;
   /**
@@ -1449,6 +1473,14 @@ export interface ModelDiagnosticsView {
    * so the register survives the lift (e.g. `prim_sparse_fsm_flop`).
    */
   auto_provided_stubs: string[];
+  /**
+   * Whether the traces carry RTL source lines (mununu 0.5.7): `available`, `partial` (with what is
+   * missing in `reason`) or `unavailable`.
+   */
+  source_map?: {
+    status: "available" | "partial" | "unavailable";
+    reason?: string;
+  };
 }
 
 /**

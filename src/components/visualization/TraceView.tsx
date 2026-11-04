@@ -10,7 +10,12 @@
  */
 
 import type { Trace } from "../../api/endpoints";
-import { formatCells, stepLabel } from "../../utils/trace";
+import {
+  formatCellSource,
+  formatCells,
+  formatReplayResult,
+  stepLabel,
+} from "../../utils/trace";
 
 const VIOLATED_COLOR = "var(--error-text, #c00)";
 
@@ -126,6 +131,51 @@ const CellRows = ({ trace }: { trace: Trace }) => {
   );
 };
 
+/** The legend: where each cell the trace shows lives in the RTL (`trace.sources`). */
+const SourceLegend = ({ trace }: { trace: Trace }) =>
+  trace.sources && trace.sources.length > 0 ? (
+    <div
+      style={{ fontFamily: "monospace", fontSize: "0.8rem", opacity: 0.85 }}
+      data-testid="trace-sources"
+    >
+      <div>cells:</div>
+      {trace.sources.map((s) => (
+        <div key={s.cell} style={{ paddingLeft: "1rem" }}>
+          {formatCellSource(s)}
+        </div>
+      ))}
+    </div>
+  ) : null;
+
+/** The simulator's verdict on the replayed trace (`trace.replay.result`). */
+const ReplayResult = ({ trace }: { trace: Trace }) => {
+  const r = trace.replay?.result;
+  if (!r) return null;
+  const color =
+    r.outcome === "match"
+      ? "var(--success-text, #2e7d32)"
+      : r.outcome === "mismatch"
+        ? VIOLATED_COLOR
+        : "var(--text-secondary, #666)";
+  return (
+    <div
+      style={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+      data-testid="trace-replay"
+    >
+      <div style={{ color }}>replay: {formatReplayResult(r)}</div>
+      {r.assertions.map((a) => (
+        <div key={a}>replay assertion: {a}</div>
+      ))}
+      {r.outcome !== "unavailable" && (
+        <div style={{ opacity: 0.7 }}>
+          replay vcd:{" "}
+          {r.vcd_bytes !== undefined ? `${r.vcd_bytes} bytes` : "not written"}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const TraceView = ({
   trace,
   title,
@@ -158,6 +208,8 @@ export const TraceView = ({
         </div>
       )}
       {isStatePath ? <StatePath trace={trace} /> : <CellRows trace={trace} />}
+      <SourceLegend trace={trace} />
+      <ReplayResult trace={trace} />
     </div>
   );
 };

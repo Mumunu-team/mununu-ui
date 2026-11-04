@@ -320,6 +320,68 @@ describe("SvVerifyAutoRunner", () => {
     ).toContain("state == 3");
   });
 
+  it("shows each row's source line and cone lines, the source-map status, and posts the replay flags", async () => {
+    const mocked = vi.mocked(endpoints.runSvVerifyAuto);
+    mocked.mockResolvedValue({
+      properties: [
+        {
+          name: "ann_guarantee_0",
+          label: "alternates",
+          kind: "assert",
+          formula: "G (start_a -> X (!start_a W start_b))",
+          formula_language: "ltl",
+          translated: "(nu G1. ...)",
+          source: { file: "pump_pair.sv", line: 13 },
+          involves: [
+            { file: "pump_pair.sv", line: 24 },
+            { file: "pump_pair.sv", line: 25 },
+            { file: "pump_pair.sv", line: 52 },
+          ],
+          outcome: "violated",
+          detail: "1 cell(s)",
+          seeded_predicates: [],
+        },
+      ],
+      unsupported: [],
+      diagnostics: {
+        state_register_count: 4,
+        blackboxed_modules: [],
+        gated_resets: ["rst_n=1"],
+        auto_provided_stubs: [],
+        source_map: {
+          status: "partial",
+          reason: "no assignment line for u_fsm.sv2v_cast_2$result",
+        },
+      },
+    });
+    render(<SvVerifyAutoRunner />);
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Replay counterexamples under Verilator/i,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Verify all properties/i }),
+    );
+    await waitFor(() => {
+      expect(screen.getByText("ann_guarantee_0")).toBeInTheDocument();
+    });
+    expect(mocked.mock.calls[0][0]).toMatchObject({
+      emit_testbench: true,
+      replay: true,
+    });
+    expect(screen.getByText("label: alternates")).toBeInTheDocument();
+    expect(screen.getByTestId("property-source").textContent).toBe(
+      "source: pump_pair.sv:13",
+    );
+    expect(screen.getByTestId("property-involves").textContent).toContain(
+      "pump_pair.sv:24-25, 52",
+    );
+    expect(screen.getByTestId("source-map-status").textContent).toContain(
+      "source map: partial — no assignment line for u_fsm.sv2v_cast_2$result",
+    );
+  });
+
   it("blocks verification when no SV source is loaded", async () => {
     const mocked = vi.mocked(endpoints.runSvVerifyAuto);
     useExtractionStore.setState({ sourceContent: "", sourceFileName: "" });
