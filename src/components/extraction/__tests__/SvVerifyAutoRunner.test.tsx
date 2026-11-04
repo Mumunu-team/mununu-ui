@@ -127,8 +127,8 @@ describe("SvVerifyAutoRunner", () => {
     });
     const arg = mocked.mock.calls[0]?.[0];
     expect(arg?.lift.source).toContain("module fsm");
-    // The sv2v front end is the default (mununu 0.5 `lift.frontend`).
-    expect(arg?.lift.frontend).toBe("sv2v");
+    // One front end (yosys-slang) since the slang-only lift: the request names none.
+    expect(arg?.lift).not.toHaveProperty("frontend");
     expect(arg?.lift.cutpoints).toEqual(["must_refresh", "precharge_done"]);
     // No pre-0.5 keys: the backend refuses unknown keys with a 400.
     for (const stale of [
@@ -225,31 +225,6 @@ describe("SvVerifyAutoRunner", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     });
     expect(mocked.mock.calls[0]?.[0]?.engine).toBe("exact-symbolic");
-  });
-
-  it("posts lift.frontend slang when the slang front end is selected", async () => {
-    const mocked = vi.mocked(endpoints.runSvVerifyAuto);
-    mocked.mockResolvedValue({
-      properties: [],
-      unsupported: [],
-      diagnostics: {
-        state_register_count: 0,
-        blackboxed_modules: [],
-        gated_resets: [],
-        auto_provided_stubs: [],
-      },
-    });
-    render(<SvVerifyAutoRunner />);
-    fireEvent.change(screen.getByLabelText("RTL front end"), {
-      target: { value: "slang" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Verify all properties/i }),
-    );
-    await waitFor(() => {
-      expect(mocked).toHaveBeenCalledTimes(1);
-    });
-    expect(mocked.mock.calls[0]?.[0]?.lift.frontend).toBe("slang");
   });
 
   it("renders each violated row's trace: a stall lasso and an unreachable target", async () => {

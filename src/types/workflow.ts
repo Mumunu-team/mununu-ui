@@ -87,7 +87,7 @@ const rtlWorkflow: WorkflowDefinition = {
       id: "translate",
       label: "Translate",
       description:
-        "Generate CTXDSL from SystemVerilog + sidecar via the sv-yosys pipeline (sv2v → Yosys → BTOR2 → bit-blast). Builds the Kripke structure.",
+        "Generate CTXDSL from SystemVerilog + sidecar via the sv-yosys pipeline (yosys-slang → BTOR2 → bit-blast). Builds the Kripke structure.",
       endpoint: "/context/import",
       optional: false,
       repeatable: true,
@@ -119,7 +119,7 @@ const rtlWorkflow: WorkflowDefinition = {
       id: "cegar",
       label: "CEGAR (predicate abstraction)",
       description:
-        "SV-direct predicate-abstraction refinement: lift SV → flattened BTOR2 (sv2v + Yosys) → KMTS predicate cube → μ-calculus 3-valued { T, F, ⊥ } verdict, refining on ⊥. An alternative to the bit-blast Translate→Verify path for designs whose state space exceeds the explicit cap. Needs only the loaded SV.",
+        "SV-direct predicate-abstraction refinement: lift SV → flattened BTOR2 (yosys-slang) → KMTS predicate cube → μ-calculus 3-valued { T, F, ⊥ } verdict, refining on ⊥. An alternative to the bit-blast Translate→Verify path for designs whose state space exceeds the explicit cap. Needs only the loaded SV.",
       endpoint: "/sv/cegar",
       optional: true,
       repeatable: true,

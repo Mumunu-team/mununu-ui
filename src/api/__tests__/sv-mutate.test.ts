@@ -50,7 +50,7 @@ describe("runSvMutate (POST /sv/mutate)", () => {
     });
 
     const req: SvMutateRequest = {
-      lift: { source: "module m; endmodule", frontend: "slang" },
+      lift: { source: "module m; endmodule" },
       mutation: "stick:state_q",
       pins: ["rst_ni=1"],
     };
@@ -61,7 +61,7 @@ describe("runSvMutate (POST /sv/mutate)", () => {
     expect(endpoint).toBe("/sv/mutate");
     expect((payload as SvMutateRequest).mutation).toBe("stick:state_q");
     expect((payload as SvMutateRequest).pins).toEqual(["rst_ni=1"]);
-    expect((payload as SvMutateRequest).lift.frontend).toBe("slang");
+    expect((payload as SvMutateRequest).lift).not.toHaveProperty("frontend");
 
     expect(out.flipped).toBe(1);
     // The property that caught the mutation flipped holds → violated.

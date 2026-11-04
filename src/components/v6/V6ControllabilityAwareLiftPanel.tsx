@@ -21,7 +21,7 @@
  *   5. The panel renders the lift summary (state count = cube
  *      count, warnings list, summary CTXDSL).
  *
- * SV-direct input (UI runs sv2v + Yosys + lift in one call) is a
+ * SV-direct input (UI runs the slang lift in one call) is a
  * follow-up. Today the user runs `mununu sv emit-btor2-per-module`
  * first to produce BTOR2 from SV, then pastes/uploads the BTOR2
  * here.

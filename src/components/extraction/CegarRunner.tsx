@@ -12,7 +12,7 @@
  * `initialBtor2`, so SV/BTOR2 → CEGAR is one flow. The trace rendering is
  * delegated to the reusable {@link CegarTraceView}.
  *
- * SV-direct input (the UI runs sv2v + Yosys + lift + CEGAR in one call)
+ * SV-direct input (the UI runs the slang lift + CEGAR in one call)
  * is a Stage-2 follow-up; today the BTOR2 is produced by loading a
  * `.btor2` file or running `mununu sv emit-btor2-per-module` first.
  */

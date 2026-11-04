@@ -37,14 +37,14 @@ describe("runSvLint (POST /sv/lint)", () => {
     });
 
     const req: SvLintRequest = {
-      lift: { source: "module m; endmodule", frontend: "slang" },
+      lift: { source: "module m; endmodule" },
     };
     const out = await runSvLint(req);
 
     expect(postSpy).toHaveBeenCalledTimes(1);
     const [endpoint, payload] = postSpy.mock.calls[0];
     expect(endpoint).toBe("/sv/lint");
-    expect((payload as SvLintRequest).lift.frontend).toBe("slang");
+    expect((payload as SvLintRequest).lift).not.toHaveProperty("frontend");
     expect(payload).not.toHaveProperty("source");
 
     expect(out.signals_flagged).toBe(3);

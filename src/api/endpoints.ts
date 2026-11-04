@@ -176,14 +176,6 @@ export interface ContextImportRequest {
   /** Additional source files (for multi-module SV compositions). */
   additional_sources?: { name: string; content: string }[];
   /**
-   * When `format === "sv-yosys"`, opt in to the sv2v preprocessor pass
-   * before Yosys elaboration. Required for modern open-source SV
-   * dialects (SV2009/2012 module-header `import pkg::*;`) that Yosys's
-   * built-in parser does not accept. Mirrors the CLI's
-   * `--preprocessor sv2v` flag. Ignored by all other formats.
-   */
-  use_sv2v?: boolean;
-  /**
    * R.6.7 / V.6 (2026-06-09) — predicate set for the
    * controllability-aware predicate-cube lift. Each entry is a
    * {name, register, value} triple identifying a register-value
@@ -193,7 +185,7 @@ export interface ContextImportRequest {
    * returned. Mirrors the CLI's `--predicate [NAME:]REG == VALUE`
    * flag on `mununu btor2 cegar`.
    *
-   * SV-yosys routing (run sv2v + Yosys + lift in one call) is a
+   * SV-yosys routing (run the slang lift in one call) is a
    * follow-up; today the user runs `mununu sv emit-btor2-per-module`
    * first to produce BTOR2 from SV, then sends the BTOR2 to this
    * endpoint with the controllability-aware fields.
@@ -976,13 +968,6 @@ export const runBtor2Game = async (
 // BTOR2-direct verbs.
 
 /**
- * The RTL front end of a lift: `auto` (the server's default order), `verilog`
- * (yosys `read_verilog`), `slang` (the yosys-slang plugin) or `sv2v` (sv2v first,
- * then the `auto` order with its slang fallback). Mirrors the CLI `--frontend`.
- */
-export type SvFrontend = "auto" | "verilog" | "slang" | "sv2v";
-
-/**
  * The SV design and how to lift it — the `lift` object every `sv/*` request
  * nests (the API peer of the CLI's shared lift flags). The backend refuses
  * unknown keys with a 400, so only these fields may be sent.
@@ -996,8 +981,6 @@ export interface SvLiftRequest {
   additional_sources?: { name: string; content: string }[];
   /** Top module (auto-detected when omitted). */
   top?: string;
-  /** The RTL front end (default `auto`). */
-  frontend?: SvFrontend;
   /** Parameter overrides, `NAME=VALUE` or `MODULE.NAME=VALUE` (mirrors `--param`). */
   params?: string[];
   /** Lift-only replacements of a source by file name (mirrors `--lift-override`). */
@@ -1058,7 +1041,7 @@ export interface SvVerifyRecoverabilityRequest {
 /**
  * Lift SV and decide `bad`-reachability of its assertions with the multi-engine
  * safety portfolio. Z3-/subprocess-heavy — uses the extended (`aiApiClient`, 120s)
- * client. The server host needs the lift tools (Yosys; sv2v / slang per `frontend`).
+ * client. The server host needs the lift tool (yosys with the slang reader).
  */
 export const runSvVerifyBad = async (
   request: SvVerifyBadRequest,
@@ -1279,7 +1262,7 @@ export interface SvCegarRequest {
 
 /**
  * Run SV-direct CEGAR in one call: lift SV → BTOR2 →
- * refinement loop. sv2v/Yosys/Z3-heavy — uses the extended
+ * refinement loop. yosys/Z3-heavy — uses the extended
  * (`aiApiClient`, 120s) client.
  */
 export const runSvCegar = async (
@@ -1293,7 +1276,7 @@ export const runSvCegar = async (
 };
 
 /** XL.6a — request for `POST /api/v1/sv/extract-sva`. slang parses SV directly,
- * so no top / sv2v / Yosys options are needed. */
+ * so no top / lift options are needed. */
 export interface SvExtractSvaRequest {
   /** SystemVerilog primary source content. */
   source: string;
@@ -1512,7 +1495,7 @@ export interface SvVerifyAutoResponse {
 
 /**
  * No-sidecar SVA verification: extract the design's SVA, lift, and verify each
- * property against the model. sv2v/Yosys/Z3/CEGAR-heavy (per property) — uses
+ * property against the model. yosys/Z3/CEGAR-heavy (per property) — uses
  * the extended (`aiApiClient`, 120s) client. Surface peer of the CLI
  * `mununu sv verify-auto`.
  */
