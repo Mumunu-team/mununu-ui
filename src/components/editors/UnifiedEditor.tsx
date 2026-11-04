@@ -29,6 +29,12 @@ import { ExtractionPanel } from "../extraction/ExtractionPanel";
 import { ContractPanel } from "../contract/ContractPanel";
 import { CodesignPanel } from "../codesign/CodesignPanel";
 import { TemplatePicker } from "../templates/TemplatePicker";
+import {
+  defaultOverTarget,
+  insertTemplateFormula,
+  templateClause,
+  templateFormulaName,
+} from "../../utils/ctxdslTemplates";
 import { useExtractionStore } from "../../store/extractionStore";
 import type { TemplateRef } from "../../types/templates";
 import type { SortField } from "../../hooks/useSummary";
@@ -953,6 +959,24 @@ export const UnifiedEditor = () => {
                     setTemplateFormulaPreview(preview);
                   }}
                   onClear={() => {
+                    setActiveTemplateRef(null);
+                    setTemplateFormulaPreview("");
+                  }}
+                  onInsert={(ref: TemplateRef) => {
+                    // Persist the instantiation in the file as a `template` clause and
+                    // point the verify form at the new formula.
+                    const content = getContent();
+                    const name = templateFormulaName(ref);
+                    const over =
+                      verifyAutomaton || defaultOverTarget(content) || "A";
+                    const next = insertTemplateFormula(
+                      content,
+                      templateClause(ref, name, over),
+                    );
+                    editorRef.current?.setValue(next);
+                    setContent(next);
+                    setVerifyFormula(name);
+                    setUseTemplate(false);
                     setActiveTemplateRef(null);
                     setTemplateFormulaPreview("");
                   }}

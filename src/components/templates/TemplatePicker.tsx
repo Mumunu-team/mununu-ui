@@ -17,6 +17,11 @@ interface TemplatePickerProps {
   onSelect: (ref: TemplateRef, formulaPreview: string) => void;
   /** Called when user cancels / clears template selection. */
   onClear?: () => void;
+  /**
+   * Called when the user wants the instantiation written into the file as a
+   * `template` clause (mununu 0.5.10) instead of sent with the request.
+   */
+  onInsert?: (ref: TemplateRef, formulaPreview: string) => void;
 }
 
 /**
@@ -31,6 +36,7 @@ export function TemplatePicker({
   domain,
   onSelect,
   onClear,
+  onInsert,
 }: TemplatePickerProps) {
   const { catalog, isLoading, error, getForDomain, preview } = useTemplates();
   const [selectedTemplate, setSelectedTemplate] =
@@ -39,7 +45,7 @@ export function TemplatePicker({
   const [searchQuery, setSearchQuery] = useState("");
 
   const templates = useMemo(() => {
-    const all = domain ? getForDomain(domain) : catalog?.templates ?? [];
+    const all = domain ? getForDomain(domain) : (catalog?.templates ?? []);
     if (!searchQuery.trim()) return all;
     const q = searchQuery.toLowerCase();
     return all.filter(
@@ -68,15 +74,12 @@ export function TemplatePicker({
     setArgs(defaults);
   }, []);
 
-  const handleArgChange = useCallback(
-    (paramName: string, value: string) => {
-      setArgs((prev) => ({ ...prev, [paramName]: value }));
-    },
-    [],
-  );
+  const handleArgChange = useCallback((paramName: string, value: string) => {
+    setArgs((prev) => ({ ...prev, [paramName]: value }));
+  }, []);
 
-  const handleApply = useCallback(() => {
-    if (!selectedTemplate) return;
+  const currentRef = useCallback((): TemplateRef | null => {
+    if (!selectedTemplate) return null;
     const ref: TemplateRef = {
       template: selectedTemplate.id,
       args: { ...args },
@@ -87,8 +90,18 @@ export function TemplatePicker({
         delete ref.args[param.name];
       }
     }
-    onSelect(ref, formulaPreview);
-  }, [selectedTemplate, args, formulaPreview, onSelect]);
+    return ref;
+  }, [selectedTemplate, args]);
+
+  const handleApply = useCallback(() => {
+    const ref = currentRef();
+    if (ref) onSelect(ref, formulaPreview);
+  }, [currentRef, formulaPreview, onSelect]);
+
+  const handleInsert = useCallback(() => {
+    const ref = currentRef();
+    if (ref && onInsert) onInsert(ref, formulaPreview);
+  }, [currentRef, formulaPreview, onInsert]);
 
   const handleBack = useCallback(() => {
     setSelectedTemplate(null);
@@ -151,6 +164,16 @@ export function TemplatePicker({
           >
             Apply Template
           </button>
+          {onInsert && (
+            <button
+              className="template-picker__apply"
+              onClick={handleInsert}
+              disabled={!canApply}
+              title="Write the instantiation into the file as a `template` clause"
+            >
+              Insert into file
+            </button>
+          )}
           {onClear && (
             <button className="template-picker__clear" onClick={onClear}>
               Clear
@@ -173,10 +196,7 @@ export function TemplatePicker({
           className="template-picker__search-input"
         />
       </div>
-      <TemplateList
-        templates={templates}
-        onSelect={handleSelectTemplate}
-      />
+      <TemplateList templates={templates} onSelect={handleSelectTemplate} />
     </div>
   );
 }
