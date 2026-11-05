@@ -36,6 +36,8 @@ coverage
 # Claude Code (user-local)
 .claude/settings.json
 .claude/reviews/
+.claude/plans/
+.claude/settings.local.json
 
 # Build
 build

@@ -29,13 +29,13 @@ You can test each layer in isolation or run the full UI flow.
 - Rust 1.91+ with the workspace toolchain (`rust-toolchain.toml` pins `stable`).
 - Node.js 20+ and npm.
 - Both repos checked out side-by-side. The instructions below assume:
-  - `~/git_repo/mununu` (Rust backend)
-  - `~/git_repo/mununu-ui` (this repo)
+  - `../mununu` (Rust backend, a sibling of this checkout)
+  - `.` (this repo)
 
 ## 2. Start the backend with the Phase B endpoint
 
 ```bash
-cd ~/git_repo/mununu
+cd ../mununu   # the Rust backend, a sibling of this checkout
 cargo run --release -p mununu-cli -- server --addr 127.0.0.1:8080
 ```
 
@@ -56,7 +56,7 @@ If `findings` is `[]` for that input, the backend you're running is **older than
 ## 3. Start the UI
 
 ```bash
-cd ~/git_repo/mununu-ui
+cd ../mununu-ui   # this repo
 npm install     # first run only
 npm run dev
 # → http://localhost:5173
@@ -84,7 +84,7 @@ async def main():
     return await asyncio.gather(w1.run(1), w2.run(2))
 PY
 
-cd ~/git_repo/mununu
+cd ../mununu   # the Rust backend, a sibling of this checkout
 cargo run -q -p mununu-extract -- ast \
     --source /tmp/gather.py \
     --language python \
@@ -156,7 +156,7 @@ Expected: `{"findings":[{"detector_id":"typescript_promise_all", ...}]}` with `b
 
 The mununu repo ships staging fixtures under `.claude/reviews/prospector/staging/`. Drop these files into the UI's Load step to see Phase B's behaviour on real MCP-server source:
 
-| Fixture | Path (in `~/git_repo/mununu`) | Expected |
+| Fixture | Path (in the `mununu` repo) | Expected |
 |---------|-------------------------------|----------|
 | MCP-001 LangGraph parallel-interrupt | `.claude/reviews/prospector/staging/MCP-001/source/tool_node_prefix.py` | 1 finding — `asyncio.gather` at line 254, `branch_count: null` (dynamic args). |
 | MCP-002 langgraphjs AsyncLocalStorage | `.claude/reviews/prospector/staging/MCP-002/source/pregel_index.ts` | 2 findings — `Promise.all` at lines 2144 + 2155. |
@@ -172,7 +172,7 @@ The MCP-005 silence is the most informative result: Phase B does **not** produce
 | 404 on `/extraction/propose-composition` | Backend predates Phase B | Rebuild backend from `main`. |
 | 400 with `unknown language: …` | UI sent a language string the backend doesn't recognise | The UI maps file extensions → backend names; if you customised the mapping, ensure the backend names match `parser::SourceLanguage::from_name`. |
 | 400 with `parse error: …` | tree-sitter rejected the source (heavy syntax errors) | The detector is conservative — pasting a fragment without surrounding scope can fail. Use a complete file. |
-| Empty findings on a file you expect to have an idiom | Detector might not cover that idiom yet | Check `~/git_repo/mununu/crates/mununu-core/src/adapter/extraction/ast_extract/concurrency_detect.rs`. Phase B (B1) covers `asyncio.gather`, `Promise.all`, and `Promise.allSettled`. Other idioms (`asyncio.create_task`, `multiprocessing.Process`, `Worker`, `tokio::spawn`, `std::thread::spawn`) are deferred — see `~/.claude/plans/phase-b-auto-detection.md`. |
+| Empty findings on a file you expect to have an idiom | Detector might not cover that idiom yet | Check `crates/mununu-core/src/adapter/extraction/ast_extract/concurrency_detect.rs` in the `mununu` repo. Phase B (B1) covers `asyncio.gather`, `Promise.all`, and `Promise.allSettled`. Other idioms (`asyncio.create_task`, `multiprocessing.Process`, `Worker`, `tokio::spawn`, `std::thread::spawn`) are deferred — see the Phase B plan (private planning notes, kept outside this repo). |
 
 ## 7. Manual end-to-end verification (optional)
 
@@ -189,9 +189,9 @@ If the resulting espec has the per-instance automata but no shared synchronizati
 
 Adding a new detector is a single Rust file change plus tests:
 
-1. Add a `match_<lang>_<idiom>(...)` function in `~/git_repo/mununu/crates/mununu-core/src/adapter/extraction/ast_extract/concurrency_detect.rs`.
+1. Add a `match_<lang>_<idiom>(...)` function in `crates/mununu-core/src/adapter/extraction/ast_extract/concurrency_detect.rs` (`mununu` repo).
 2. Wire it into `detect_concurrency` for the relevant `SourceLanguage` arm.
 3. Unit-test against minimal-form and realistic-form sources (the test methodology lesson from GAP-005h).
 4. No UI change is required — new detectors automatically surface as additional cards in the same `FindingsList`.
 
-The Phase B plan document at `~/.claude/plans/phase-b-auto-detection.md` lists the prioritised backlog of follow-up detectors and the academic / technical sources that motivate each.
+The Phase B plan document (private planning notes, kept outside this repo) lists the prioritised backlog of follow-up detectors and the academic / technical sources that motivate each.
