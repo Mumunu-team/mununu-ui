@@ -289,9 +289,9 @@ export interface Btor2CegarRequest {
   /** Max CEGAR iterations (default 16). */
   max_iterations?: number;
   /**
-   * Must-edge inference policy (kebab-case; default `"off"`):
-   * `"sampling-confluence"` | `"smt-per-target"` |
-   * `"smt-per-target-standard"` | `"smt-hyper-must"`.
+   * Must-edge inference policy (kebab-case; default `"off"`): `"auto"` | `"off"` |
+   * `"smt-per-target"` | `"smt-per-target-standard"` | `"smt-hyper-must"`. Any other value
+   * is a 400 (mununu#865).
    */
   must_edge_inference?: string;
   /**
