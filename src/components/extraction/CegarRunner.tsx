@@ -48,7 +48,7 @@ export const CegarRunner = ({ initialBtor2 }: { initialBtor2?: string }) => {
   const [predicateSource, setPredicateSource] = useState("wp");
   const [maxIterations, setMaxIterations] = useState("16");
   const [mustEdgeInference, setMustEdgeInference] = useState("off");
-  const [mayEdgeInference, setMayEdgeInference] = useState("off");
+  const [mayEdgeInference, setMayEdgeInference] = useState("smt-all-pairs");
   const [configValuesText, setConfigValuesText] = useState("");
   const [emitCtxdsl, setEmitCtxdsl] = useState(false);
   // R-F5.4.2b — predicate-cube engine selector ("explicit" | "symbolic").
