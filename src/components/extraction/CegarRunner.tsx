@@ -266,7 +266,6 @@ export const CegarRunner = ({ initialBtor2 }: { initialBtor2?: string }) => {
               style={{ width: "100%", marginTop: "0.25rem", padding: "0.3rem" }}
             >
               <option value="off">off</option>
-              <option value="sampling-confluence">sampling-confluence</option>
               <option value="smt-per-target">smt-per-target (∀∀)</option>
               <option value="smt-per-target-standard">
                 smt-per-target-standard (∀∃)
