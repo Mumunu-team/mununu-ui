@@ -74,8 +74,8 @@ describe("CegarRunner", () => {
     expect(arg?.predicate_source).toBe("wp");
     expect(arg?.max_iterations).toBe(16);
     expect(arg?.content).toContain("state 1 r");
-    // M.6 parity defaults: may-edge off, no config-values.
-    expect(arg?.may_edge_inference).toBe("off");
+    // mununu#867: the sound all-pairs may-relation by default (as the CLI); no config-values.
+    expect(arg?.may_edge_inference).toBe("smt-all-pairs");
     expect(arg?.init_values).toEqual([]);
     // CTXDSL Phase 2 default: emit-ctxdsl off.
     expect(arg?.emit_ctxdsl).toBe(false);
@@ -96,7 +96,7 @@ describe("CegarRunner", () => {
 
     render(<CegarRunner />);
     fireEvent.change(screen.getByLabelText("May-edge inference"), {
-      target: { value: "smt-all-pairs" },
+      target: { value: "off" },
     });
     fireEvent.change(screen.getByLabelText("Config values"), {
       target: { value: "boot_fsm_ns=0,1,2,3,4,5,6,7\n" },
@@ -109,7 +109,7 @@ describe("CegarRunner", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     });
     const arg = mocked.mock.calls[0]?.[0];
-    expect(arg?.may_edge_inference).toBe("smt-all-pairs");
+    expect(arg?.may_edge_inference).toBe("off");
     expect(arg?.init_values).toEqual(["boot_fsm_ns=0,1,2,3,4,5,6,7"]);
   });
 

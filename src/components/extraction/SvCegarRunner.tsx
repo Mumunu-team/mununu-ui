@@ -39,7 +39,7 @@ export const SvCegarRunner = () => {
   const [predicateSource, setPredicateSource] = useState("wp");
   const [maxIterations, setMaxIterations] = useState("16");
   const [mustEdgeInference, setMustEdgeInference] = useState("off");
-  const [mayEdgeInference, setMayEdgeInference] = useState("off");
+  const [mayEdgeInference, setMayEdgeInference] = useState("smt-all-pairs");
   const [configValuesText, setConfigValuesText] = useState("");
   const [emitCtxdsl, setEmitCtxdsl] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
