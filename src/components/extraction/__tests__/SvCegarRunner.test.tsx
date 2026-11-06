@@ -90,8 +90,8 @@ describe("SvCegarRunner", () => {
     // anyconst policy → setundef_anyconst true, anyseq false.
     expect(arg?.setundef_anyconst).toBe(true);
     expect(arg?.setundef_anyseq).toBe(false);
-    // The sv2v front end is the default for modern SV (mununu 0.5 `lift.frontend`).
-    expect(arg?.lift.frontend).toBe("sv2v");
+    // One front end (yosys-slang) since the slang-only lift: the request names none.
+    expect(arg?.lift).not.toHaveProperty("frontend");
     // No pre-0.5 top-level keys: the backend refuses unknown keys with a 400.
     expect(arg).not.toHaveProperty("source");
     expect(arg).not.toHaveProperty("use_sv2v");

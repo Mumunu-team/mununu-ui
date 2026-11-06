@@ -69,11 +69,11 @@ describe("client routes (mununu 0.5)", () => {
       }),
     );
     const out = await runSvVerifyBad({
-      lift: { source: "module m; endmodule", top: "m", frontend: "auto" },
+      lift: { source: "module m; endmodule", top: "m" },
     });
     expect(post.mock.calls[0][0]).toBe("/sv/verify-bad");
     expect(post.mock.calls[0][1]).toEqual({
-      lift: { source: "module m; endmodule", top: "m", frontend: "auto" },
+      lift: { source: "module m; endmodule", top: "m" },
     });
     expect(out.outcome).toBe("holds");
   });

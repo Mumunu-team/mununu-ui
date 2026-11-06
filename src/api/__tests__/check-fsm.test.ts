@@ -76,7 +76,7 @@ describe("runSvCheckFsm (POST /sv/check-fsm)", () => {
     });
 
     const req: SvCheckFsmRequest = {
-      lift: { source: "module m; endmodule", frontend: "sv2v" },
+      lift: { source: "module m; endmodule" },
       max_width: 8,
     };
     const out = await runSvCheckFsm(req);
@@ -87,7 +87,7 @@ describe("runSvCheckFsm (POST /sv/check-fsm)", () => {
     // mununu 0.5: the lift inputs travel as one `lift` object; the old
     // top-level keys (source, use_sv2v, …) are refused with a 400.
     expect(payload).toEqual({
-      lift: { source: "module m; endmodule", frontend: "sv2v" },
+      lift: { source: "module m; endmodule" },
       max_width: 8,
     });
     expect(out.illegal_encodings_found).toBe(1);

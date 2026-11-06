@@ -3,7 +3,7 @@
  *
  * Reads the loaded SystemVerilog from the extraction store and posts to
  * `POST /api/v1/sv/verify-auto`: the backend extracts the design's SVA, lifts SV
- * → BTOR2 (sv2v + Yosys), synthesises `$past` shadow flops, and for each
+ * → BTOR2 (yosys-slang), synthesises `$past` shadow flops, and for each
  * translated property auto-seeds cube predicates from the formula's state-cell
  * atoms and runs the predicate-abstraction refinement loop — rendering a
  * per-property verdict (HOLDS / VIOLATED / ⊥ / skipped). Properties whose atoms
@@ -17,11 +17,9 @@ import {
   runSvVerifyAuto,
   SvVerifyAutoResponse,
   PropertyVerdictView,
-  SvFrontend,
 } from "../../api/endpoints";
 import { useExtractionStore } from "../../store/extractionStore";
 import { TraceView } from "../visualization/TraceView";
-import { SvFrontendSelect } from "./SvFrontendSelect";
 import { compactLines, formatSourceLoc } from "../../utils/trace";
 
 const outcomeColor = (outcome: string): string => {
@@ -73,9 +71,6 @@ export const SvVerifyAutoRunner = () => {
     useExtractionStore();
 
   const [top, setTop] = useState("");
-  // `lift.frontend`: sv2v keeps the former `use_sv2v: true` default; `slang`
-  // replaces the former "force slang" checkbox (while loops, package imports).
-  const [frontend, setFrontend] = useState<SvFrontend>("sv2v");
   const [maxIterations, setMaxIterations] = useState("16");
   const [mustEdgeInference, setMustEdgeInference] = useState("off");
   // R-F5.5d — predicate-cube engine selector ("explicit" | "symbolic").
@@ -130,7 +125,6 @@ export const SvVerifyAutoRunner = () => {
             content: s.content,
           })),
           top: top.trim() || undefined,
-          frontend,
           cutpoints: cutpoints
             .split(/[\n,]/)
             .map((s) => s.trim())
@@ -171,7 +165,7 @@ export const SvVerifyAutoRunner = () => {
     <div style={{ fontFamily: "sans-serif" }}>
       <p style={{ color: "var(--text-secondary, #666)" }}>
         Verifies the design's SystemVerilog Assertions with no sidecar: the
-        backend extracts the SVA, lifts SV → BTOR2 (sv2v + Yosys), and runs
+        backend extracts the SVA, lifts SV → BTOR2 (yosys-slang), and runs
         predicate-abstraction refinement per property, rendering a 3-valued{" "}
         <code>{"{ HOLDS, VIOLATED, ⊥ }"}</code> verdict. Combinational/IO
         properties (over inputs/outputs) are reported skipped. Surface peer of
@@ -266,7 +260,6 @@ export const SvVerifyAutoRunner = () => {
               <option value="smt-hyper-must">smt-hyper-must</option>
             </select>
           </label>
-          <SvFrontendSelect value={frontend} onChange={setFrontend} />
           <label
             style={{
               fontSize: "0.9rem",

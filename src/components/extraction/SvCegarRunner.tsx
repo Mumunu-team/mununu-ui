@@ -5,7 +5,7 @@
  * additional sources) from the extraction store, takes a μ-calculus
  * formula + an initial predicate set + the refinement/lift options, and
  * posts to `POST /api/v1/sv/cegar` — the backend lifts SV → flattened
- * BTOR2 (sv2v + Yosys) and runs the same refinement loop as the
+ * BTOR2 (yosys-slang) and runs the same refinement loop as the
  * BTOR2-direct path. The trace rendering is delegated to the reusable
  * {@link CegarTraceView}. Surface peer of the CLI `mununu sv cegar`.
  *
@@ -20,11 +20,9 @@ import {
   runSvCegar,
   PredicateSpecRequest,
   Btor2CegarResponse,
-  SvFrontend,
 } from "../../api/endpoints";
 import { useExtractionStore } from "../../store/extractionStore";
 import { CegarTraceView } from "./CegarTraceView";
-import { SvFrontendSelect } from "./SvFrontendSelect";
 import { parsePredicates, parseLines } from "./cegarParsing";
 
 type SetundefPolicy = "zero" | "anyconst" | "anyseq";
@@ -36,8 +34,6 @@ export const SvCegarRunner = () => {
   const [formula, setFormula] = useState("nu X. <true> X");
   const [predicatesText, setPredicatesText] = useState("");
   const [top, setTop] = useState("");
-  // sv2v keeps the former `use_sv2v: true` default (sv2v first, slang fallback).
-  const [frontend, setFrontend] = useState<SvFrontend>("sv2v");
   const [setundefPolicy, setSetundefPolicy] = useState<SetundefPolicy>("zero");
   const [controllableInputsText, setControllableInputsText] = useState("");
   const [predicateSource, setPredicateSource] = useState("wp");
@@ -93,7 +89,6 @@ export const SvCegarRunner = () => {
             content: s.content,
           })),
           top: top.trim() || undefined,
-          frontend,
         },
         setundef_anyseq: setundefPolicy === "anyseq",
         setundef_anyconst: setundefPolicy === "anyconst",
@@ -121,7 +116,7 @@ export const SvCegarRunner = () => {
     <div style={{ fontFamily: "sans-serif" }}>
       <p style={{ color: "var(--text-secondary, #666)" }}>
         Runs SV-direct CEGAR: the backend lifts the loaded SystemVerilog to a
-        flattened BTOR2 (sv2v + Yosys) and runs the
+        flattened BTOR2 (yosys-slang) and runs the
         predicate-abstraction-refinement loop (R.5), rendering the per-iteration
         trace and the 3-valued <code>{"{ T, F, ⊥ }"}</code> verdict. Surface
         peer of the CLI <code>mununu sv cegar</code> and the{" "}
@@ -314,7 +309,6 @@ export const SvCegarRunner = () => {
               }}
             />
           </label>
-          <SvFrontendSelect value={frontend} onChange={setFrontend} />
           <label
             style={{
               fontSize: "0.9rem",
