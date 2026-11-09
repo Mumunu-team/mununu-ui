@@ -76,3 +76,10 @@ src/
 ## License
 
 [Mununu Non-Commercial License](LICENSE)
+
+`npm run build` also writes `dist/LICENSE.txt` and `dist/THIRD_PARTY_NOTICES.txt`
+([`scripts/third-party-notices.mjs`](scripts/third-party-notices.mjs)): every production npm package
+in `package-lock.json`, its declared licence and the licence and notice files it ships. mununu's
+on-prem bundle refuses a UI build without both. On 2026-11-09 the set was 125 packages: MIT, ISC,
+BSD-3-Clause and Apache-2.0, plus `lightningcss` (MPL-2.0; the CSS build step, whose code does not
+ship in the output) and `dompurify` (MPL-2.0 or Apache-2.0).
