@@ -238,6 +238,15 @@
   color: #fcd34d;
 }
 
+/* mununu#1106 item 5 — realization decisions (a controllability demotion under composition, a
+   dead compound action) shown beside the verdict they qualify. */
+.unified-editor__verify-notes {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  font-size: 0.9em;
+  color: var(--color-warning-text, inherit);
+}
+
 .unified-editor__verify-table {
   width: 100%;
   font-size: 0.8125rem;
