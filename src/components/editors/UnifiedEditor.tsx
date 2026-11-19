@@ -1007,6 +1007,16 @@ export const UnifiedEditor = () => {
                       }[verification.state.result.outcome]
                     }
                   </div>
+                  {verification.state.result.notes?.length ? (
+                    <ul
+                      className="unified-editor__verify-notes"
+                      aria-label="Realization decisions that shape this verdict"
+                    >
+                      {verification.state.result.notes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <SanityPanel reports={verification.state.result.sanity} />
                   <table className="unified-editor__verify-table">
                     <thead>

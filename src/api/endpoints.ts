@@ -130,6 +130,14 @@ export interface ContextVerifyResponse {
   results: FormulaVerificationResult[];
   /** One report per checked automaton, present when `sanity` was requested. */
   sanity?: SanityReport[];
+  /**
+   * Decisions taken while realizing the context that change what the model means, each
+   * naming its composition and members (mununu#1106 item 5): a label controllable in one
+   * member but carried by its partner composes as uncontrollable (`[mununu#592]`), a compound
+   * action no partner matches can never fire (`[mununu#570]`). Read a verdict over a
+   * composition against them; absent when there is nothing to say.
+   */
+  notes?: string[];
 }
 
 // Context endpoints
