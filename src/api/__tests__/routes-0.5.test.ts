@@ -4,7 +4,6 @@ import {
   getContextGraphs,
   runBtor2Verify,
   runBtor2VerifyLiveness,
-  runSvVerifyBad,
   runSvVerifyLiveness,
   verifyContext,
   verifyMemoryCheck,
@@ -57,25 +56,6 @@ describe("client routes (mununu 0.5)", () => {
       );
     await verifyMemoryCheck({ config_toml: "[project]\nname = 'x'\n" });
     expect(post.mock.calls[0][0]).toBe("/memory/check");
-  });
-
-  it("posts the SV safety verb to /sv/verify-bad with a lift object", async () => {
-    const post = vi.spyOn(aiApiClient, "post").mockResolvedValue(
-      ok({
-        outcome: "holds",
-        reachable_by: [],
-        unreachable_by: ["exact"],
-        contradiction: false,
-      }),
-    );
-    const out = await runSvVerifyBad({
-      lift: { source: "module m; endmodule", top: "m" },
-    });
-    expect(post.mock.calls[0][0]).toBe("/sv/verify-bad");
-    expect(post.mock.calls[0][1]).toEqual({
-      lift: { source: "module m; endmodule", top: "m" },
-    });
-    expect(out.outcome).toBe("holds");
   });
 
   it("asks btor2 verify for a witness and reads the finite trace", async () => {

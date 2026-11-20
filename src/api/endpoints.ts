@@ -489,7 +489,7 @@ export interface Btor2VerifyRequest {
 export type PropertyVerdict = "holds" | "violated" | "unknown" | "skipped";
 
 /**
- * Response for `POST /api/v1/btor2/verify` (and `/sv/verify-bad`) — the canonical
+ * Response for `POST /api/v1/btor2/verify` — the canonical
  * property verdict plus the per-engine reachability breakdown.
  */
 export interface Btor2VerifyResponse {
@@ -970,8 +970,8 @@ export const runBtor2Game = async (
   return response.data;
 };
 
-// SV-direct verbs (matches mununu backend /api/v1/sv/verify-bad, /sv/verify-liveness,
-// /sv/verify-recoverability). Lift SV then decide a property in one call — no
+// SV-direct verbs (matches mununu backend /sv/verify-liveness,
+// /sv/verify-recoverability; /sv/verify-bad was removed, mununu#1074). Lift SV then decide a property in one call — no
 // emit-btor2 step. They return the same Btor2Verify*Response shapes as the
 // BTOR2-direct verbs.
 
@@ -1003,11 +1003,6 @@ export interface SvLiftRequest {
    * UNDER-approximation (a HOLDS does not transfer).
    */
   merge_clock_domains?: boolean;
-}
-
-/** Request for `POST /api/v1/sv/verify-bad` (SV-direct safety portfolio). */
-export interface SvVerifyBadRequest {
-  lift: SvLiftRequest;
 }
 
 /**
@@ -1045,21 +1040,6 @@ export interface SvVerifyRecoverabilityRequest {
    */
   discover_assumptions?: boolean;
 }
-
-/**
- * Lift SV and decide `bad`-reachability of its assertions with the multi-engine
- * safety portfolio. Z3-/subprocess-heavy — uses the extended (`aiApiClient`, 120s)
- * client. The server host needs the lift tool (yosys with the slang reader).
- */
-export const runSvVerifyBad = async (
-  request: SvVerifyBadRequest,
-): Promise<Btor2VerifyResponse> => {
-  const response = await aiApiClient.post<Btor2VerifyResponse>(
-    "/sv/verify-bad",
-    request,
-  );
-  return response.data;
-};
 
 /** Lift SV and decide a response-liveness property in one call. */
 export const runSvVerifyLiveness = async (
